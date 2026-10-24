@@ -57,6 +57,13 @@ if not exist "%~dp0\..\venv\Scripts\python.exe" (
     set "PY_EXE=%~dp0\..\venv\Scripts\python.exe"
 )
 
+:: Verify PyQt6 is installed in venv
+"%~dp0\..\venv\Scripts\python.exe" -c "import PyQt6" >nul 2>&1
+if !ERRORLEVEL! NEQ 0 (
+    echo [Haseen Kids] تثبيت المكتبات المطلوبة على هذا الجهاز (PyQt6, yt-dlp)...
+    "%~dp0\..\venv\Scripts\python.exe" -m pip install -r "%~dp0\..\requirements.txt"
+)
+
 "!PY_EXE!" "%~dp0\..\run.py"
 if %ERRORLEVEL% NEQ 0 (
     echo.

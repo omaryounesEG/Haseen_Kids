@@ -43,6 +43,13 @@ if "!PY_EXE!"=="" (
     exit /b 1
 )
 
+:: Verify PyQt6 is available
+"!PY_EXE!" -c "import PyQt6" >nul 2>&1
+if !ERRORLEVEL! NEQ 0 (
+    echo [Haseen Kids] Installing required libraries (PyQt6, etc.)...
+    "!PY_EXE!" -m pip install -r "%~dp0\..\requirements.txt"
+)
+
 "!PY_EXE!" "ui\app.py"
 if %ERRORLEVEL% NEQ 0 (
     echo.
