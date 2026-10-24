@@ -1,6 +1,12 @@
 import sys
 import os
+import threading
+import asyncio
 from datetime import datetime
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -167,10 +173,44 @@ class HaseenMainWindow(QMainWindow):
 
         self.init_ui()
 
+        # Ensure proxy and tracker are active even if service daemon was not started separately
+        self._ensure_embedded_services()
+
         # Update timer for live counters
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.refresh_usage_gauges)
         self.timer.start(3000)
+
+    def _ensure_embedded_services(self):
+        import socket
+        import time
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        result = sock.connect_ex(("127.0.0.1", 8089))
+        sock.close()
+        if result != 0:
+            from proxy.local_proxy import LocalProxyServer
+            def run_proxy():
+                try:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    srv = LocalProxyServer(port=8089)
+                    loop.run_until_complete(srv.start())
+                except Exception:
+                    pass
+            t = threading.Thread(target=run_proxy, daemon=True)
+            t.start()
+
+        from core.tracker import ActiveWindowTracker
+        def run_tracker():
+            tracker = ActiveWindowTracker(self.db, poll_interval=3)
+            while True:
+                try:
+                    tracker.tick()
+                    time.sleep(3)
+                except Exception:
+                    time.sleep(3)
+        t_tr = threading.Thread(target=run_tracker, daemon=True)
+        t_tr.start()
 
     def apply_layout_direction(self):
         if self.current_lang == "ar":
