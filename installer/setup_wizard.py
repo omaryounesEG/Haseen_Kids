@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import (
     QGroupBox, QRadioButton, QButtonGroup, QMessageBox
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QIcon, QPixmap
 
 from installer.preflight import SystemPreflightChecker
 from core.security import SecurityManager
@@ -44,8 +44,22 @@ class BraveDownloaderThread(QThread):
 class WelcomePage(QWizardPage):
     def __init__(self):
         super().__init__()
-        self.setTitle("مرحباً بك في معالج تثبيت حَصِين للأطفال 🛡️")
+        self.setTitle("مرحباً بك في معالج تثبيت حَصِين للأطفال")
         layout = QVBoxLayout(self)
+
+        top_h = QHBoxLayout()
+        icon_path = os.path.join(BASE_DIR, "hassen_icon.png")
+        if os.path.exists(icon_path):
+            lbl_ico = QLabel()
+            pix = QPixmap(icon_path).scaled(64, 64, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            lbl_ico.setPixmap(pix)
+            top_h.addWidget(lbl_ico)
+
+        lbl_head = QLabel("<h2>حَصِين للأطفال | Haseen Kids</h2><span style='color: #38bdf8;'>نظام الحماية والرقابة الأسرية الذكي</span>")
+        lbl_head.setTextFormat(Qt.TextFormat.RichText)
+        top_h.addWidget(lbl_head)
+        top_h.addStretch()
+        layout.addLayout(top_h)
 
         lbl = QLabel(
             "يقوم هذا المعالج بتثبيت برنامج <strong>حَصِين للأطفال | Haseen Kids</strong> على جهازك.<br><br>"
@@ -204,6 +218,30 @@ class InstallPage(QWizardPage):
         self.finish_install()
 
     def finish_install(self):
+        # Create Desktop Shortcut with hassen_icon.ico
+        try:
+            desktop = os.path.join(os.environ.get("USERPROFILE", ""), "Desktop")
+            shortcut_path = os.path.join(desktop, "حَصِين للأطفال.lnk")
+            icon_path = os.path.join(BASE_DIR, "hassen_icon.ico")
+            target_path = os.path.join(BASE_DIR, "scripts", "run_all.bat")
+            vbs = f"""
+Set ws = CreateObject("WScript.Shell")
+Set sc = ws.CreateShortcut("{shortcut_path}")
+sc.TargetPath = "{target_path}"
+sc.WorkingDirectory = "{BASE_DIR}"
+sc.IconLocation = "{icon_path},0"
+sc.Description = "حَصِين للأطفال | Haseen Kids"
+sc.Save
+"""
+            vbs_file = os.path.join(BASE_DIR, "temp_shortcut.vbs")
+            with open(vbs_file, "w", encoding="utf-8") as f:
+                f.write(vbs)
+            subprocess.run(["cscript", "//nologo", vbs_file], shell=True)
+            if os.path.exists(vbs_file):
+                os.remove(vbs_file)
+        except Exception:
+            pass
+
         self.prog_bar.setValue(100)
         self.lbl_status.setText("اكتمل التثبيت والتهيئة بنجاح! ✅")
 
@@ -236,6 +274,9 @@ class HaseenSetupWizard(QWizard):
         self.resize(650, 480)
         self.setStyleSheet(STYLE_WIZARD)
         self.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+        icon_path = os.path.join(BASE_DIR, "hassen_icon.png")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
 
         self.setButtonText(QWizard.WizardButton.NextButton, "التالي >")
         self.setButtonText(QWizard.WizardButton.BackButton, "< السابق")

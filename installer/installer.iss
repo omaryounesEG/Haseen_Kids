@@ -16,6 +16,8 @@ AppUpdatesURL={#MyAppURL}
 DefaultDirName={autopf}\Haseen_Kids
 DefaultGroupName=Haseen Kids
 DisableProgramGroupPage=yes
+SetupIconFile=..\hassen_icon.ico
+UninstallIconFile=..\hassen_icon.ico
 ; MinVersion 6.1 means Windows 7 SP1 or newer!
 MinVersion=6.1
 OutputDir=..\dist
@@ -34,12 +36,12 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "..\\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: ".git,venv,*.pyc,__pycache__,Backup_OldVersion,temp_update"
+Source: "..\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: ".git,venv,*.pyc,__pycache__,Backup_OldVersion,temp_update"
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\scripts\run_all.bat"; WorkingDir: "{app}"
-Name: "{group}\إلغاء تثبيت حصين"; Filename: "{app}\scripts\uninstall.bat"; WorkingDir: "{app}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\scripts\run_all.bat"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{group}\{#MyAppName}"; Filename: "{app}\scripts\run_all.bat"; IconFilename: "{app}\hassen_icon.ico"; WorkingDir: "{app}"
+Name: "{group}\إلغاء تثبيت حصين"; Filename: "{app}\scripts\uninstall.bat"; IconFilename: "{app}\hassen_icon.ico"; WorkingDir: "{app}"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\scripts\run_all.bat"; IconFilename: "{app}\hassen_icon.ico"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\scripts\setup_policies.bat"; Description: "تطبيق سياسات الأمان وجدار الحماية"; Flags: runhidden

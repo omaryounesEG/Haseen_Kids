@@ -2,7 +2,14 @@ import sys
 import os
 import threading
 import asyncio
+import ctypes
 from datetime import datetime
+
+# Enable custom taskbar icon in Windows 7 / 10 / 11
+try:
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("saip.haseen.kids.v1")
+except Exception:
+    pass
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
@@ -16,7 +23,7 @@ from PyQt6.QtWidgets import (
     QCheckBox, QGroupBox, QStackedWidget
 )
 from PyQt6.QtCore import Qt, QTimer, QTime
-from PyQt6.QtGui import QFont, QIcon
+from PyQt6.QtGui import QFont, QIcon, QPixmap
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database.db_manager import DBManager
@@ -131,6 +138,9 @@ class PasswordDialog(QDialog):
         self.setFixedSize(360, 180)
         self.setStyleSheet(STYLE_SHEET_DARK)
         self.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+        icon_path = os.path.join(BASE_DIR, "hassen_icon.png")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
 
         layout = QVBoxLayout(self)
         lbl = QLabel("أدخل كلمة مرور ولي الأمر للوصول للإعدادات:")
@@ -161,6 +171,9 @@ class HaseenMainWindow(QMainWindow):
         self.setWindowTitle("حَصِين للأطفال | Haseen Kids - الحماية الأسرية الذكية")
         self.resize(1000, 700)
         self.setStyleSheet(STYLE_SHEET_DARK)
+        icon_path = os.path.join(BASE_DIR, "hassen_icon.png")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
 
         self.db = DBManager()
         self.security = SecurityManager(self.db)
@@ -225,8 +238,15 @@ class HaseenMainWindow(QMainWindow):
 
         # Top Bar
         top_bar = QHBoxLayout()
+        icon_path = os.path.join(BASE_DIR, "hassen_icon.png")
+        if os.path.exists(icon_path):
+            lbl_icon = QLabel()
+            pix = QPixmap(icon_path).scaled(46, 46, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            lbl_icon.setPixmap(pix)
+            top_bar.addWidget(lbl_icon)
+
         title_box = QVBoxLayout()
-        self.lbl_title = QLabel("🛡️ حَصِين للأطفال | Haseen Kids")
+        self.lbl_title = QLabel("حَصِين للأطفال | Haseen Kids")
         self.lbl_title.setStyleSheet("font-size: 22px; font-weight: bold; color: #38bdf8;")
         self.lbl_sub = QLabel("حماية تصفح ذكية • مشغل يوتيوب معزول بدون إعلانات • إدارة الوقت")
         self.lbl_sub.setStyleSheet("font-size: 13px; color: #94a3b8;")

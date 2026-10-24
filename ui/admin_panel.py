@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import (
     QCheckBox, QGroupBox, QSpinBox, QTimeEdit, QWidget
 )
 from PyQt6.QtCore import Qt, QTime
+from PyQt6.QtGui import QIcon
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database.db_manager import DBManager
@@ -39,6 +40,10 @@ class ParentAdminDialog(QDialog):
         self.resize(900, 650)
         self.setStyleSheet(STYLE_ADMIN)
         self.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        icon_path = os.path.join(base_dir, "hassen_icon.png")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
 
         self.db = DBManager()
         self.security = SecurityManager(self.db)
