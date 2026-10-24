@@ -1,6 +1,7 @@
 @echo off
-chcp 65001 >nul
-title حصين - الخدمة الخلفية والبروكسي
-cd /d "H:\Haseen_Kids"
-"H:\Haseen_Kids\venv\Scripts\python.exe" "H:\Haseen_Kids\core\service.py"
+setlocal
+title Haseen Kids - Core Daemon
+cd /d "%~dp0\.."
+"%~dp0\..\venv\Scripts\python.exe" "core\service.py"
 pause
+endlocal
