@@ -1,0 +1,10 @@
+PyQt6
+pywin32
+psutil
+yt-dlp
+python-mpv
+google-generativeai
+mitmproxy
+nuitka
+cryptography
+requests

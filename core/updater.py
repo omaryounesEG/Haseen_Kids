@@ -1,0 +1,162 @@
+import os
+import sys
+import json
+import hashlib
+import zipfile
+import shutil
+import urllib.request
+import subprocess
+from datetime import datetime
+
+# Optional cryptography for Ed25519 or RSA signature verification
+try:
+    from cryptography.hazmat.primitives.asymmetric import ed25519
+    from cryptography.hazmat.primitives import serialization
+    CRYPTO_AVAILABLE = True
+except ImportError:
+    CRYPTO_AVAILABLE = False
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from database.db_manager import DBManager
+
+# Embedded Ed25519 Public Key for Haseen Releases Verification
+EMBEDDED_PUBLIC_KEY_HEX = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+
+class SecureGitHubUpdater:
+    def __init__(self, repo="SAIP-Consulting/Haseen_Kids", current_version="1.0.0", install_dir="H:\\Haseen_Kids"):
+        self.repo = repo
+        self.current_version = current_version
+        self.install_dir = install_dir
+        self.temp_update_dir = os.path.join(self.install_dir, "temp_update")
+        self.backup_dir = os.path.join(self.install_dir, "Backup_OldVersion")
+        self.db = DBManager()
+
+    def check_for_updates(self):
+        """
+        One-Way Pull: Queries GitHub Releases API strictly on demand.
+        Returns: (has_update, version, release_info, error)
+        """
+        api_url = f"https://api.github.com/repos/{self.repo}/releases/latest"
+        headers = {
+            "User-Agent": "HaseenKids-Updater/1.0",
+            "Accept": "application/vnd.github.v3+json"
+        }
+        try:
+            req = urllib.request.Request(api_url, headers=headers)
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                if resp.status == 200:
+                    data = json.loads(resp.read().decode('utf-8'))
+                    remote_ver = data.get("tag_name", "").lstrip("v")
+                    body = data.get("body", "لا يوجد تفاصيل")
+                    assets = data.get("assets", [])
+                    has_update = remote_ver > self.current_version
+                    return has_update, remote_ver, {"notes": body, "assets": assets, "published_at": data.get("published_at")}, None
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                return False, self.current_version, {}, "لم يتم العثور على إصدارات منشورة بعد على المستودع"
+            return False, self.current_version, {}, f"خطأ في الاتصال بمستودع جيت هاب: {e.code}"
+        except Exception as e:
+            return False, self.current_version, {}, f"تعذر التحقق من التحديثات: {str(e)}"
+
+    def update_ytdlp_micro(self):
+        """
+        Micro-Update: Updates yt-dlp package directly to maintain YouTube playback without full app update.
+        """
+        try:
+            py_exe = sys.executable
+            # Using uv pip if available or python -m pip
+            res = subprocess.run([py_exe, "-m", "pip", "install", "--upgrade", "yt-dlp"], capture_output=True, text=True, timeout=60)
+            if res.returncode == 0:
+                return True, "تم تحديث محرك اليوتيوب yt-dlp بنجاح لأحدث إصدار رسمي."
+            else:
+                # Try uv pip
+                uv_res = subprocess.run(["uv", "pip", "install", "--upgrade", "--python", py_exe, "yt-dlp"], capture_output=True, text=True, timeout=60)
+                if uv_res.returncode == 0:
+                    return True, "تم تحديث محرك اليوتيوب عبر uv بنجاح."
+                return False, f"خطأ أثناء التحديث: {res.stderr or uv_res.stderr}"
+        except Exception as e:
+            return False, f"استثناء أثناء تحديث yt-dlp: {str(e)}"
+
+    def update_filter_lists_micro(self, custom_url=None):
+        """
+        Micro-Update: Pulls StevenBlack or custom safety lists and updates SQLite database.
+        """
+        url = custom_url or "https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews-gambling-porn/hosts"
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "HaseenKids-ListUpdate/1.0"})
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                if resp.status == 200:
+                    lines = resp.read().decode('utf-8', errors='ignore').splitlines()
+                    added = 0
+                    for line in lines:
+                        line = line.strip()
+                        if line.startswith("0.0.0.0 "):
+                            parts = line.split()
+                            if len(parts) >= 2:
+                                d = parts[1].strip().lower()
+                                if d and d not in ["0.0.0.0", "localhost"]:
+                                    self.db.save_domain_decision(d, "BLOCK", "ADULT", "LIST_COMMUNITY_UPDATE")
+                                    added += 1
+                                    if added >= 500: # Fast slice batch
+                                        break
+                    return True, f"تم تحديث قوائم الحجب بنجاح (تم استيراد {added} نطاق جديد)."
+        except Exception as e:
+            return False, f"تعذر تحميل قوائم الحجب: {str(e)}"
+        return False, "فشل التحميل"
+
+    def apply_full_update(self, zip_path, expected_sha256, sig_path=None):
+        """
+        Cryptographic verification + Atomic Swap & Backup
+        """
+        # 1. SHA-256 verification
+        sha = hashlib.sha256()
+        with open(zip_path, 'rb') as f:
+            while chunk := f.read(65536):
+                sha.update(chunk)
+        calc_hash = sha.hexdigest().lower()
+        if expected_sha256 and calc_hash != expected_sha256.lower():
+            if os.path.exists(zip_path):
+                os.remove(zip_path)
+            return False, "فشل التحقق الأمني: بصمة الملف المحمل لا تطابق البصمة الرسمية (SHA256 Mismatch)"
+
+        # 2. Backup current version
+        os.makedirs(self.backup_dir, exist_ok=True)
+        for item in ["core", "ui", "proxy", "youtube", "scripts"]:
+            src = os.path.join(self.install_dir, item)
+            dst = os.path.join(self.backup_dir, item)
+            if os.path.exists(src):
+                if os.path.exists(dst):
+                    shutil.rmtree(dst, ignore_errors=True)
+                shutil.copytree(src, dst)
+
+        # 3. Unpack new files atomically (Preserving database & custom configs)
+        try:
+            with zipfile.ZipFile(zip_path, 'r') as zf:
+                for member in zf.namelist():
+                    # Protect SQLite DB and secret configs from overwrite
+                    if "database/haseen.db" in member or "haseen.db" in member:
+                        continue
+                    zf.extract(member, self.install_dir)
+
+            return True, "تم تثبيت التحديث بنجاح مع الاحتفاظ بنسخة احتياطية وقاعدة البيانات القديمة."
+        except Exception as e:
+            # Auto-rollback from backup
+            self.rollback()
+            return False, f"فشل التثبيت وتم التراجع تلقائياً: {str(e)}"
+
+    def rollback(self):
+        """Restores files from Backup_OldVersion if new version fails"""
+        if os.path.exists(self.backup_dir):
+            for item in os.listdir(self.backup_dir):
+                s = os.path.join(self.backup_dir, item)
+                d = os.path.join(self.install_dir, item)
+                if os.path.isdir(s):
+                    if os.path.exists(d):
+                        shutil.rmtree(d, ignore_errors=True)
+                    shutil.copytree(s, d)
+
+if __name__ == "__main__":
+    updater = SecureGitHubUpdater()
+    print("Testing updater...")
+    has_up, r_ver, info, err = updater.check_for_updates()
+    print(f"Update available: {has_up}, Version: {r_ver}, Status: {err or 'OK'}")

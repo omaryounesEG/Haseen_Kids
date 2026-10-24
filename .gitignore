@@ -1,0 +1,7 @@
+venv/
+__pycache__/
+*.pyc
+*.heartbeat
+temp_update/
+Backup_OldVersion/
+.pytest_cache/
