@@ -59,7 +59,8 @@ def main():
     print("[3/3] Launching Haseen Kids UI Dashboard...")
     print("=" * 65)
     try:
-        res = subprocess.run([PY_EXE, UI_SCRIPT], cwd=BASE_DIR)
+        ui_cmd = [PY_EXE, UI_SCRIPT] + [arg for arg in sys.argv[1:] if arg != "--help"]
+        res = subprocess.run(ui_cmd, cwd=BASE_DIR)
         if res.returncode != 0:
             print(f"\n[!] UI process exited with code: {res.returncode}")
     except Exception as e:

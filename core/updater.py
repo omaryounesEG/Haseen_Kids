@@ -23,7 +23,7 @@ from database.db_manager import DBManager
 EMBEDDED_PUBLIC_KEY_HEX = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
 
 class SecureGitHubUpdater:
-    def __init__(self, repo="omaryounesEG/Haseen_Kids", current_version="1.0.0", install_dir=None):
+    def __init__(self, repo="omaryounesEG/Haseen_Kids", current_version="1.1.0", install_dir=None):
         self.repo = repo
         self.current_version = current_version
         self.install_dir = install_dir or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -40,25 +40,24 @@ class SecureGitHubUpdater:
             last_str = self.db.get_setting("last_biweekly_update_check", "0")
             last_check = float(last_str) if last_str else 0
             now = time.time()
-            # 14 days in seconds = 14 * 86400 = 1209600
             if now - last_check < 1209600:
-                return False, self.current_version
+                return False, self.current_version, self.current_version
 
             self.db.set_setting("last_biweekly_update_check", str(now))
-            has_update, remote_ver, info, err = self.check_for_updates()
+            has_update, cur_v, rem_v, info, err = self.check_for_updates()
             if has_update and callback_on_update:
-                callback_on_update(remote_ver)
-            return has_update, remote_ver
+                callback_on_update(rem_v)
+            return has_update, cur_v, rem_v
         except Exception:
-            return False, self.current_version
+            return False, self.current_version, self.current_version
 
     def check_for_updates(self):
         """
-        One-Way Pull: Queries GitHub Releases API and Tags on demand.
-        Returns: (has_update, version, release_info, error)
+        Queries GitHub Releases API and Tags.
+        Returns: (has_update, remote_version, release_info, error)
         """
         headers = {
-            "User-Agent": "HaseenKids-Updater/1.0",
+            "User-Agent": "HaseenKids-Updater/1.1",
             "Accept": "application/vnd.github.v3+json"
         }
 
@@ -70,7 +69,7 @@ class SecureGitHubUpdater:
                 if resp.status == 200:
                     data = json.loads(resp.read().decode('utf-8'))
                     remote_ver = data.get("tag_name", "").lstrip("v")
-                    body = data.get("body", "تحديث جديد يتضمن تحسينات الأمان والواجهة")
+                    body = data.get("body", "تحديث رسمي يتضمن تحسينات الأمان والواجهة")
                     assets = data.get("assets", [])
                     has_update = remote_ver > self.current_version
                     return has_update, remote_ver, {"notes": body, "assets": assets, "published_at": data.get("published_at")}, None
@@ -87,11 +86,11 @@ class SecureGitHubUpdater:
                     if tags and len(tags) > 0:
                         latest_tag = tags[0].get("name", "").lstrip("v")
                         has_update = latest_tag > self.current_version
-                        return has_update, latest_tag, {"notes": "إصدار رسمي محدث على GitHub"}, None
+                        return has_update, latest_tag, {"notes": "إصدار رسمي محدث على مستودع GitHub"}, None
         except Exception as e:
             return False, self.current_version, {}, f"تعذر التحقق من التحديثات: {str(e)}"
 
-        return False, self.current_version, {}, "أنت تعمل بالفعل على أحدث إصدار من البرنامج."
+        return False, self.current_version, {}, None
 
     def update_from_github_direct(self, progress_callback=None):
         """

@@ -25,7 +25,7 @@ QWizard, QWizardPage, QDialog {
     color: #f8fafc;
 }
 QWidget {
-    font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+    font-family: 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, Arial, sans-serif;
     font-size: 13px;
     color: #f8fafc;
     background-color: transparent;
@@ -329,27 +329,10 @@ class InstallPage(QWizardPage):
         self.finish_install()
 
     def finish_install(self):
-        # Create Desktop Shortcut with hassen_icon.ico
+        # Create Desktop & Startup Shortcuts with hassen_icon.ico
         try:
-            desktop = os.path.join(os.environ.get("USERPROFILE", ""), "Desktop")
-            shortcut_path = os.path.join(desktop, "حَصِين للأطفال.lnk")
-            icon_path = os.path.join(BASE_DIR, "hassen_icon.ico")
-            target_path = os.path.join(BASE_DIR, "scripts", "run_all.bat")
-            vbs = f"""
-Set ws = CreateObject("WScript.Shell")
-Set sc = ws.CreateShortcut("{shortcut_path}")
-sc.TargetPath = "{target_path}"
-sc.WorkingDirectory = "{BASE_DIR}"
-sc.IconLocation = "{icon_path},0"
-sc.Description = "حَصِين للأطفال | Haseen Kids"
-sc.Save
-"""
-            vbs_file = os.path.join(BASE_DIR, "temp_shortcut.vbs")
-            with open(vbs_file, "w", encoding="utf-8") as f:
-                f.write(vbs)
-            subprocess.run(["cscript", "//nologo", vbs_file], shell=True)
-            if os.path.exists(vbs_file):
-                os.remove(vbs_file)
+            from core.startup_helper import create_windows_shortcuts
+            create_windows_shortcuts(create_desktop=True, create_startup=True)
         except Exception:
             pass
 

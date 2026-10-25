@@ -20,10 +20,10 @@ from PyQt6.QtWidgets import (
     QLabel, QPushButton, QLineEdit, QTextEdit, QTabWidget,
     QProgressBar, QSpinBox, QTimeEdit, QTableWidget, QTableWidgetItem,
     QHeaderView, QMessageBox, QDialog, QFormLayout, QComboBox,
-    QCheckBox, QGroupBox, QStackedWidget
+    QCheckBox, QGroupBox, QStackedWidget, QSystemTrayIcon, QMenu
 )
 from PyQt6.QtCore import Qt, QTimer, QTime
-from PyQt6.QtGui import QFont, QIcon, QPixmap
+from PyQt6.QtGui import QFont, QIcon, QPixmap, QFontDatabase
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database.db_manager import DBManager
@@ -40,7 +40,7 @@ QMainWindow, QDialog {
 }
 QWidget {
     color: #f8fafc;
-    font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+    font-family: 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, Arial, sans-serif;
     font-size: 14px;
 }
 QGroupBox {
@@ -319,7 +319,9 @@ class HaseenMainWindow(QMainWindow):
         self.current_lang = self.db.get_setting("language", "ar")
         self.apply_layout_direction()
 
+        self._force_exit = False
         self.init_ui()
+        self.setup_system_tray()
 
         # Ensure proxy and tracker are active even if service daemon was not started separately
         self._ensure_embedded_services()
@@ -623,6 +625,71 @@ class HaseenMainWindow(QMainWindow):
         self.apply_layout_direction()
         QMessageBox.information(self, "اللغة / Language", "يرجى إعادة تشغيل الواجهة لتطبيق التغيير الكامل للغة")
 
+    def setup_system_tray(self):
+        """Configures System Tray icon beside the Windows clock."""
+        self.tray_icon = QSystemTrayIcon(self)
+        icon_path = os.path.join(BASE_DIR, "hassen_icon.png")
+        if os.path.exists(icon_path):
+            self.tray_icon.setIcon(QIcon(icon_path))
+        self.tray_icon.setToolTip("حَصِين للأطفال | نظام الحماية الأسرية نشط 🛡️")
+
+        tray_menu = QMenu()
+        tray_menu.setStyleSheet("QMenu { background-color: #1e293b; color: #f8fafc; font-family: 'IBM Plex Sans Arabic', sans-serif; font-size: 13px; } QMenu::item:selected { background-color: #2563eb; }")
+
+        act_show = tray_menu.addAction("عرض الواجهة الرئيسية 🛡️")
+        act_show.triggered.connect(self.show_main_window)
+
+        act_admin = tray_menu.addAction("لوحة تحكم ولي الأمر ⚙️")
+        act_admin.triggered.connect(self.open_parent_panel)
+
+        tray_menu.addSeparator()
+
+        act_exit = tray_menu.addAction("إغلاق البرنامج وإنهاء الحماية ❌")
+        act_exit.triggered.connect(self.exit_app_parent_authenticated)
+
+        self.tray_icon.setContextMenu(tray_menu)
+        self.tray_icon.activated.connect(self.on_tray_activated)
+        self.tray_icon.show()
+
+    def show_main_window(self):
+        self.showNormal()
+        self.activateWindow()
+
+    def on_tray_activated(self, reason):
+        if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
+            if self.isVisible():
+                self.hide()
+            else:
+                self.show_main_window()
+
+    def closeEvent(self, event):
+        """Intercepts window close: minimizes to system tray unless authenticated."""
+        if self._force_exit:
+            self.tray_icon.hide()
+            event.accept()
+        else:
+            event.ignore()
+            self.hide()
+            if self.tray_icon.isSystemTrayAvailable():
+                self.tray_icon.showMessage(
+                    "حَصِين للأطفال 🛡️",
+                    "البرنامج مستمر في العمل في الخلفية لحماية جهاز طفلك.\n(يمكنك الوصول إليه من أيقونات شريط المهام بجوار الساعة).",
+                    QSystemTrayIcon.MessageIcon.Information,
+                    3000
+                )
+
+    def exit_app_parent_authenticated(self):
+        """Exits app only if parent password is authenticated."""
+        dlg = PasswordDialog(self.db, self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            pwd = dlg.get_password()
+            if getattr(dlg, 'reset_successful', False) or self.security.verify_admin(pwd):
+                self._force_exit = True
+                self.tray_icon.hide()
+                QApplication.quit()
+            else:
+                QMessageBox.critical(self, "ممنوع الإغلاق", "كلمة المرور غير صحيحة!\nلا يمكن إغلاق البرنامج إلا بإذن ولي الأمر.")
+
     def open_parent_panel(self):
         dlg = PasswordDialog(self.db, self)
         if dlg.exec() == QDialog.DialogCode.Accepted:
@@ -634,8 +701,19 @@ class HaseenMainWindow(QMainWindow):
             else:
                 QMessageBox.critical(self, "خطأ", "كلمة المرور غير صحيحة!")
 
+def setup_custom_fonts():
+    font_dir = os.path.join(BASE_DIR, "assets", "fonts")
+    for f in ["IBMPlexSansArabic-Regular.ttf", "IBMPlexSansArabic-Bold.ttf"]:
+        fp = os.path.join(font_dir, f)
+        if os.path.exists(fp):
+            QFontDatabase.addApplicationFont(fp)
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    setup_custom_fonts()
+    app.setFont(QFont("IBM Plex Sans Arabic", 10))
+
     win = HaseenMainWindow()
-    win.show()
+    if "--minimized" not in sys.argv:
+        win.show()
     sys.exit(app.exec())

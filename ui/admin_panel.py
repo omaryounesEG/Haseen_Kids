@@ -482,10 +482,18 @@ class ParentAdminDialog(QDialog):
         tab = QWidget()
         v = QVBoxLayout(tab)
 
-        grp_up = QGroupBox("التحديثات الآمنة والترقية المباشرة (GitHub Updates):")
+        grp_up = QGroupBox("التحديثات والترقية المباشرة من GitHub:")
         v_up = QVBoxLayout(grp_up)
 
-        lbl_desc = QLabel("يمكنك فحص وتنزيل أحدث التحديثات والتحسينات مباشرة من GitHub دون فقد أي من إعداداتك أو كلمات المرور:")
+        # Version status card
+        v_card = QHBoxLayout()
+        self.lbl_cur_ver = QLabel(f"📌 الإصدار الحالي المثبت: <b style='color:#10b981;'>v{self.updater.current_version}</b>")
+        self.lbl_rem_ver = QLabel("🌐 حالة مستودع GitHub: <span style='color:#38bdf8;'>جاهز للفحص</span>")
+        v_card.addWidget(self.lbl_cur_ver)
+        v_card.addWidget(self.lbl_rem_ver)
+        v_up.addLayout(v_card)
+
+        lbl_desc = QLabel("يمكنك فحص وتنزيل أحدث التحديثات والتحسينات مباشرة من GitHub دون مساس بقاعدة البيانات أو كلمات المرور:")
         lbl_desc.setStyleSheet("color: #94a3b8; line-height: 1.5;")
         v_up.addWidget(lbl_desc)
 
@@ -568,20 +576,35 @@ class ParentAdminDialog(QDialog):
             QMessageBox.critical(self, "فشل التحديث", msg)
 
     def check_github_updates(self):
-        has_up, r_ver, info, err = self.updater.check_for_updates()
+        self.lbl_rem_ver.setText("جاري الفحص من GitHub... ⏳")
+        from PyQt6.QtWidgets import QApplication
+        QApplication.processEvents()
+
+        has_up, rem_v, info, err = self.updater.check_for_updates()
+        cur_v = self.updater.current_version
         if err:
-            QMessageBox.information(self, "فحص التحديثات", err)
+            self.lbl_rem_ver.setText("<span style='color:#ef4444;'>فشل الاتصال</span>")
+            QMessageBox.warning(self, "فحص التحديثات", f"تعذر التحقق من التحديثات:\n{err}")
         elif has_up:
+            self.lbl_rem_ver.setText(f"🌐 يتوفر إصدار جديد: <b style='color:#38bdf8;'>v{rem_v}</b>")
             reply = QMessageBox.question(
                 self,
-                "تحديث متوفر!",
-                f"يتوفر إصدار رسمي جديد v{r_ver} على GitHub!\nالتفاصيل: {info.get('notes', '')}\n\nهل ترغب في تطبيق التحديث الآن مباشرة؟",
+                "تحديث جديد متوفر!",
+                f"يتوفر إصدار رسمي جديد: v{rem_v} على GitHub!\n"
+                f"الإصدار الحالي المثبت لديك: v{cur_v}\n\n"
+                f"تفاصيل التحديث:\n{info.get('notes', 'تحسينات أمنية واستقرار شامل')}\n\n"
+                f"هل ترغب في تطبيق التحديث الآن مباشرة؟",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
             )
             if reply == QMessageBox.StandardButton.Yes:
                 self.run_direct_update()
         else:
-            QMessageBox.information(self, "فحص التحديثات", f"البرنامج محدث لآخر إصدار ({self.updater.current_version}).")
+            self.lbl_rem_ver.setText(f"🌐 مستودع GitHub: <b style='color:#10b981;'>v{rem_v} (محدث بالكامل)</b>")
+            QMessageBox.information(
+                self,
+                "البرنامج محدث",
+                f"أنت تعمل بالفعل على أحدث إصدار متوفر: v{cur_v} ✅\nلا توجد تحديثات جديدة حالياً."
+            )
 
     def update_ytdlp(self):
         ok, msg = self.updater.update_ytdlp_micro()
