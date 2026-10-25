@@ -142,11 +142,52 @@ class ApprovalManager:
                 server.starttls()
                 server.ehlo()
                 server.login(smtp_user, clean_pass)
-            return True, "تم الاتصال بنجاح بسيرفر البريد! كلمة المرور صحيحة ومفعلة للإرسال والاستقبال ✅"
+            return True, "تم الاتصال بنجاح بسيرفر البريد! كلمة المرور صحيحة وجاهزة للإرسال ✅"
         except smtplib.SMTPAuthenticationError as e:
-            return False, f"فشل تسجيل الدخول: تأكد من استخدام كلمة مرور التطبيق المكونة من 16 حرفاً من حساب Google. الخطأ: {e}"
+            return False, f"فشل المصادقة: تأكد من استخدام 'كلمة مرور تطبيقات' (App Password) وليس كلمة مرور الإيميل العادية، وتأكد من تفعيل التحقق بخطوتين (2FA). التفاصيل: {e}"
         except Exception as e:
             return False, f"تعذر الاتصال بسيرفر البريد: {str(e)}"
+
+    def send_password_reset_email(self, parent_email, otp):
+        """
+        Sends a secure 6-digit OTP code to the parent's email for password recovery.
+        """
+        subject = "🛡️ [حصين للأطفال] رمز استرجاع كلمة مرور ولي الأمر"
+        html = f"""
+        <div dir="rtl" style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b; max-width: 500px; border: 1px solid #cbd5e1; border-radius: 8px; padding: 20px;">
+            <h2 style="color: #2563eb;">حَصِين للأطفال | استرجاع كلمة المرور</h2>
+            <p>تم استلام طلب لإعادة تعيين كلمة مرور ولي الأمر في برنامج حَصِين للأطفال.</p>
+            <div style="background-color: #f1f5f9; padding: 15px; border-radius: 6px; text-align: center; margin: 20px 0;">
+                <span style="font-size: 14px; color: #64748b; display: block;">رمز التحقق الخاص بك (صالح لمدة 15 دقيقة):</span>
+                <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #0284c7;">{otp}</span>
+            </div>
+            <p style="font-size: 13px; color: #64748b;">إذا لم تكن أنت من طلب هذا الرمز، فيرجى تجاهل هذه الرسالة فلن يتم تغيير أي شيء.</p>
+        </div>
+        """
+        smtp_user = self.db.get_setting("smtp_user", "")
+        smtp_pass = self.db.get_setting("smtp_pass", "")
+        smtp_server = self.db.get_setting("smtp_server", "smtp.gmail.com")
+
+        if not smtp_user or not smtp_pass or not parent_email:
+            return False, "إعدادات البريد غير مكتملة (يرجى التأكد من حفظ إيميل ولي الأمر وكلمة مرور التطبيق في الإعدادات أولاً)."
+
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = subject
+        msg['From'] = smtp_user
+        msg['To'] = parent_email
+        msg.attach(MIMEText(html, 'html', 'utf-8'))
+
+        try:
+            clean_pass = smtp_pass.replace(" ", "")
+            with smtplib.SMTP(smtp_server, 587, timeout=10) as server:
+                server.ehlo()
+                server.starttls()
+                server.ehlo()
+                server.login(smtp_user, clean_pass)
+                server.sendmail(smtp_user, parent_email, msg.as_string())
+            return True, "تم إرسال رمز التحقق إلى بريدك الإلكتروني بنجاح!"
+        except Exception as e:
+            return False, f"فشل إرسال البريد: {str(e)}"
 
 if __name__ == "__main__":
     am = ApprovalManager()

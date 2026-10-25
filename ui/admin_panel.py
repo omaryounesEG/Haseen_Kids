@@ -517,13 +517,26 @@ class ParentAdminDialog(QDialog):
         # Change Admin Password
         grp_pwd = QGroupBox("تغيير كلمة مرور ولي الأمر:")
         f_pwd = QFormLayout(grp_pwd)
+        
         self.in_new_pwd = QLineEdit()
         self.in_new_pwd.setEchoMode(QLineEdit.EchoMode.Password)
-        self.in_new_pwd.setPlaceholderText("كلمة المرور الجديدة")
-        btn_ch_pwd = QPushButton("تغيير كلمة المرور 🔑")
+        self.in_new_pwd.setPlaceholderText("أدخل كلمة المرور الجديدة")
+        
+        self.in_confirm_pwd = QLineEdit()
+        self.in_confirm_pwd.setEchoMode(QLineEdit.EchoMode.Password)
+        self.in_confirm_pwd.setPlaceholderText("أعد إدخال كلمة المرور للتأكيد")
+        
+        self.chk_show_pwd = QCheckBox("👁️ إظهار كلمة المرور للتأكد قبل الحفظ")
+        self.chk_show_pwd.setStyleSheet("color: #38bdf8; font-weight: bold;")
+        self.chk_show_pwd.toggled.connect(self.toggle_show_passwords)
+        
+        btn_ch_pwd = QPushButton("حفظ كلمة المرور الجديدة 🔑")
         btn_ch_pwd.setObjectName("actionBtn")
         btn_ch_pwd.clicked.connect(self.change_password)
+        
         f_pwd.addRow("كلمة المرور الجديدة:", self.in_new_pwd)
+        f_pwd.addRow("تأكيد كلمة المرور:", self.in_confirm_pwd)
+        f_pwd.addRow("", self.chk_show_pwd)
         f_pwd.addRow("", btn_ch_pwd)
         v.addWidget(grp_pwd)
 
@@ -584,11 +597,25 @@ class ParentAdminDialog(QDialog):
         else:
             QMessageBox.warning(self, "تنبيه", msg)
 
+    def toggle_show_passwords(self, checked):
+        mode = QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password
+        self.in_new_pwd.setEchoMode(mode)
+        self.in_confirm_pwd.setEchoMode(mode)
+
     def change_password(self):
-        p = self.in_new_pwd.text().strip()
-        if len(p) < 4:
-            QMessageBox.warning(self, "تنبيه", "يجب أن تكون كلمة المرور 4 أحرف على الأقل")
+        p1 = self.in_new_pwd.text().strip()
+        p2 = self.in_confirm_pwd.text().strip()
+        
+        if len(p1) < 4:
+            QMessageBox.warning(self, "تنبيه", "يجب أن تكون كلمة المرور 4 أحرف أو أرقام على الأقل.")
             return
-        self.security.set_admin_password(p)
+            
+        if p1 != p2:
+            QMessageBox.warning(self, "عدم تطابق", "كلمتا المرور غير متطابقتين!\nيرجى التأكد من كتابة نفس كلمة المرور في الحقلين.")
+            return
+
+        self.security.set_admin_password(p1)
         self.in_new_pwd.clear()
-        QMessageBox.information(self, "نجاح", "تم تغيير كلمة مرور ولي الأمر بنجاح ✅")
+        self.in_confirm_pwd.clear()
+        self.chk_show_pwd.setChecked(False)
+        QMessageBox.information(self, "نجاح", "تم تغيير كلمة مرور ولي الأمر بنجاح وحفظها بأمان ✅")

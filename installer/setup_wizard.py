@@ -217,15 +217,60 @@ class ConfigPage(QWizardPage):
         v_opt.addWidget(self.chk_firewall)
         layout.addWidget(grp_opt)
 
-        grp_pass = QGroupBox("تعيين كلمة مرور ولي الأمر:")
+        # Password configuration with verification & existing password check
+        sec = SecurityManager()
+        stored_hash = sec.db.get_setting("admin_password_hash", "")
+        self.has_existing_pwd = bool(stored_hash and stored_hash != "$2b$12$K1fK72eD0p6tFq49oTzN.OMkEreZ9vE7N0nE2eFvA/fF9GfO8mG4u") # check if customized
+        
+        grp_pass = QGroupBox("حماية كلمة مرور ولي الأمر:")
         v_pass = QVBoxLayout(grp_pass)
+        
+        if self.has_existing_pwd:
+            self.chk_keep_pwd = QCheckBox("الإبقاء على كلمة المرور الحالية المحفوظة دون تغيير (موصى به) 🔒")
+            self.chk_keep_pwd.setChecked(True)
+            self.chk_keep_pwd.setStyleSheet("color: #10b981; font-weight: bold;")
+            v_pass.addWidget(self.chk_keep_pwd)
+        else:
+            self.chk_keep_pwd = None
+            
         lbl_p = QLabel("كلمة المرور هذه تحمي لوحة التحكم وتمنع الطفل من إغلاق أو حذف البرنامج:")
         lbl_p.setStyleSheet("color: #94a3b8; font-size: 12px;")
-        self.in_pwd = QLineEdit("haseen2026")
-        self.in_pwd.setEchoMode(QLineEdit.EchoMode.Password)
         v_pass.addWidget(lbl_p)
+
+        self.in_pwd = QLineEdit()
+        self.in_pwd.setEchoMode(QLineEdit.EchoMode.Password)
+        self.in_pwd.setPlaceholderText("كلمة المرور الجديدة")
+        if not self.has_existing_pwd:
+            self.in_pwd.setText("haseen2026")
+            
+        self.in_pwd_confirm = QLineEdit()
+        self.in_pwd_confirm.setEchoMode(QLineEdit.EchoMode.Password)
+        self.in_pwd_confirm.setPlaceholderText("تأكيد كلمة المرور الجديدة")
+        if not self.has_existing_pwd:
+            self.in_pwd_confirm.setText("haseen2026")
+            
+        self.chk_show_wiz_pwd = QCheckBox("👁️ إظهار كلمة المرور للتأكد")
+        self.chk_show_wiz_pwd.setStyleSheet("color: #38bdf8;")
+        self.chk_show_wiz_pwd.toggled.connect(self._toggle_wiz_pwd)
+
         v_pass.addWidget(self.in_pwd)
+        v_pass.addWidget(self.in_pwd_confirm)
+        v_pass.addWidget(self.chk_show_wiz_pwd)
+        
+        if self.chk_keep_pwd:
+            def on_keep_toggled(checked):
+                self.in_pwd.setEnabled(not checked)
+                self.in_pwd_confirm.setEnabled(not checked)
+                self.chk_show_wiz_pwd.setEnabled(not checked)
+            self.chk_keep_pwd.toggled.connect(on_keep_toggled)
+            on_keep_toggled(True)
+            
         layout.addWidget(grp_pass)
+
+    def _toggle_wiz_pwd(self, checked):
+        mode = QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password
+        self.in_pwd.setEchoMode(mode)
+        self.in_pwd_confirm.setEchoMode(mode)
 
 # Page 4: Install Progress
 class InstallPage(QWizardPage):
@@ -249,9 +294,15 @@ class InstallPage(QWizardPage):
 
         # Apply security policies
         sec = SecurityManager()
-        pwd = self.wizard().page(2).in_pwd.text().strip()
-        if pwd:
-            sec.set_admin_password(pwd)
+        p2 = self.wizard().page(2)
+        should_set_pwd = True
+        if hasattr(p2, 'chk_keep_pwd') and p2.chk_keep_pwd and p2.chk_keep_pwd.isChecked():
+            should_set_pwd = False
+            
+        if should_set_pwd:
+            pwd = p2.in_pwd.text().strip()
+            if pwd:
+                sec.set_admin_password(pwd)
 
         if self.wizard().page(2).chk_policy.isChecked():
             sec.apply_browser_registry_policies()

@@ -45,6 +45,42 @@ class SecurityManager:
         self.db.set_setting("admin_password_hash", h)
         return True
 
+    def generate_reset_otp(self):
+        """
+        Generates a secure 6-digit OTP for password reset, valid for 15 minutes.
+        """
+        import random
+        import time
+        otp = str(random.SystemRandom().randint(100000, 999999))
+        exp = time.time() + (15 * 60)
+        self.db.set_setting("password_reset_otp", f"{otp}:{exp}")
+        return otp
+
+    def verify_reset_otp(self, entered_otp):
+        """
+        Verifies the reset OTP.
+        """
+        import time
+        raw = self.db.get_setting("password_reset_otp", "")
+        if not raw or ":" not in raw:
+            return False, "لا يوجد طلب استرجاع نشط حالياً أو انتهت صلاحيته."
+        otp, exp_str = raw.split(":", 1)
+        try:
+            exp = float(exp_str)
+        except ValueError:
+            return False, "بيانات الرمز غير صالحة."
+        
+        if time.time() > exp:
+            self.db.set_setting("password_reset_otp", "")
+            return False, "انتهت صلاحية رمز الاسترجاع (15 دقيقة). يرجى طلب رمز جديد."
+            
+        if entered_otp.strip() == otp.strip():
+            return True, "تم التحقق من الرمز بنجاح."
+        return False, "رمز الاسترجاع غير صحيح! يرجى التأكد من الرمز المرسل للبريد."
+
+    def clear_reset_otp(self):
+        self.db.set_setting("password_reset_otp", "")
+
     def apply_browser_registry_policies(self):
         """
         Configures Enterprise Group Policies for Google Chrome & Microsoft Edge via Windows Registry:

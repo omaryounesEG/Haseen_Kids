@@ -31,7 +31,7 @@ if not exist "%TEMP_ZIP%" (
 )
 
 echo [2/3] Extracting files and applying update...
-powershell -NoProfile -Command "$ProgressPreference = 'SilentlyContinue'; Expand-Archive -Path '%TEMP_ZIP%' -DestinationPath '%TEMP_EXTRACT%' -Force; $root = Get-ChildItem -Path '%TEMP_EXTRACT%' -Directory | Select-Object -First 1; if ($root) { Copy-Item -Path ($root.FullName + '\*') -Destination '%~dp0' -Recurse -Force }"
+powershell -NoProfile -Command "$ProgressPreference = 'SilentlyContinue'; Expand-Archive -Path '%TEMP_ZIP%' -DestinationPath '%TEMP_EXTRACT%' -Force; $root = Get-ChildItem -Path '%TEMP_EXTRACT%' -Directory | Select-Object -First 1; if ($root) { Get-ChildItem -Path $root.FullName | Where-Object { $_.Name -notmatch '\.db$' } | Copy-Item -Destination '%~dp0' -Recurse -Force }"
 
 rmdir /S /Q "%TEMP_EXTRACT%" >nul 2>&1
 del /F /Q "%TEMP_ZIP%" >nul 2>&1

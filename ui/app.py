@@ -131,11 +131,130 @@ QHeaderView::section {
 }
 """
 
-class PasswordDialog(QDialog):
-    def __init__(self, parent=None):
+class ResetPasswordDialog(QDialog):
+    def __init__(self, db, parent=None):
         super().__init__(parent)
+        self.db = db
+        self.security = SecurityManager(self.db)
+        self.approvals = ApprovalManager(self.db)
+        self.setWindowTitle("استرجاع كلمة مرور ولي الأمر 🛡️")
+        self.setFixedSize(430, 380)
+        self.setStyleSheet(STYLE_SHEET_DARK)
+        self.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+        icon_path = os.path.join(BASE_DIR, "hassen_icon.png")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+
+        layout = QVBoxLayout(self)
+        title = QLabel("إعادة تعيين كلمة المرور عبر البريد:")
+        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #38bdf8;")
+        layout.addWidget(title)
+
+        parent_email = self.db.get_setting("parent_email", "")
+        if parent_email:
+            # Mask email e.g. o***@gmail.com
+            parts = parent_email.split("@")
+            masked = parts[0][0] + "***@" + parts[1] if len(parts) == 2 else parent_email
+            lbl_info = QLabel(f"سيتم إرسال رمز تحقق مؤقت (OTP) إلى بريدك المسجل:\n<b>{masked}</b>")
+        else:
+            lbl_info = QLabel("لم يتم تسجيل بريد إلكتروني لولي الأمر في الإعدادات مسبقاً.")
+            lbl_info.setStyleSheet("color: #ef4444;")
+        lbl_info.setStyleSheet("color: #cbd5e1; line-height: 1.4;")
+        layout.addWidget(lbl_info)
+
+        self.btn_send_otp = QPushButton("📨 إرسال رمز التحقق إلى بريدي الآن")
+        self.btn_send_otp.setStyleSheet("background-color: #0284c7; color: white; padding: 8px; border-radius: 6px; font-weight: bold;")
+        self.btn_send_otp.clicked.connect(self.send_otp)
+        layout.addWidget(self.btn_send_otp)
+
+        self.in_otp = QLineEdit()
+        self.in_otp.setPlaceholderText("أدخل رمز التحقق (6 أرقام)")
+        self.in_otp.setMaxLength(6)
+
+        self.in_new_p1 = QLineEdit()
+        self.in_new_p1.setEchoMode(QLineEdit.EchoMode.Password)
+        self.in_new_p1.setPlaceholderText("كلمة المرور الجديدة")
+
+        self.in_new_p2 = QLineEdit()
+        self.in_new_p2.setEchoMode(QLineEdit.EchoMode.Password)
+        self.in_new_p2.setPlaceholderText("تأكيد كلمة المرور الجديدة")
+
+        self.chk_show = QCheckBox("👁️ إظهار كلمة المرور للتأكد")
+        self.chk_show.setStyleSheet("color: #38bdf8;")
+        self.chk_show.toggled.connect(self.toggle_show)
+
+        layout.addWidget(self.in_otp)
+        layout.addWidget(self.in_new_p1)
+        layout.addWidget(self.in_new_p2)
+        layout.addWidget(self.chk_show)
+
+        btn_box = QHBoxLayout()
+        self.btn_confirm = QPushButton("تأكيد وتغيير كلمة المرور ✅")
+        self.btn_confirm.setObjectName("actionBtn")
+        self.btn_confirm.clicked.connect(self.confirm_reset)
+        btn_close = QPushButton("إلغاء ❌")
+        btn_close.clicked.connect(self.reject)
+        btn_box.addWidget(self.btn_confirm)
+        btn_box.addWidget(btn_close)
+        layout.addLayout(btn_box)
+
+    def toggle_show(self, checked):
+        m = QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password
+        self.in_new_p1.setEchoMode(m)
+        self.in_new_p2.setEchoMode(m)
+
+    def send_otp(self):
+        parent_email = self.db.get_setting("parent_email", "")
+        if not parent_email:
+            QMessageBox.warning(self, "خطأ", "لا يوجد بريد مسجل لولي الأمر في البرنامج.\nيرجى التواصل مع مسؤول الجهاز.")
+            return
+
+        otp = self.security.generate_reset_otp()
+        self.btn_send_otp.setEnabled(False)
+        self.btn_send_otp.setText("جاري إرسال الرمز للبريد... ⏳")
+        QApplication.processEvents()
+
+        ok, msg = self.approvals.send_password_reset_email(parent_email, otp)
+        self.btn_send_otp.setEnabled(True)
+        self.btn_send_otp.setText("إعادة إرسال رمز التحقق 🔄")
+        if ok:
+            QMessageBox.information(self, "تم الإرسال", f"{msg}\nيرجى مراجعة صندوق الوارد والبريد غير الهام (Spam).")
+        else:
+            QMessageBox.critical(self, "فشل الإرسال", f"{msg}\nتأكد من اتصال الإنترنت وصحة إعدادات SMTP.")
+
+    def confirm_reset(self):
+        otp = self.in_otp.text().strip()
+        p1 = self.in_new_p1.text().strip()
+        p2 = self.in_new_p2.text().strip()
+
+        if not otp:
+            QMessageBox.warning(self, "تنبيه", "يرجى إدخال رمز التحقق المرسل إلى بريدك.")
+            return
+
+        ok, msg = self.security.verify_reset_otp(otp)
+        if not ok:
+            QMessageBox.warning(self, "رمز غير صحيح", msg)
+            return
+
+        if len(p1) < 4:
+            QMessageBox.warning(self, "تنبيه", "يجب أن تكون كلمة المرور 4 أحرف أو أرقام على الأقل.")
+            return
+
+        if p1 != p2:
+            QMessageBox.warning(self, "عدم تطابق", "كلمتا المرور غير متطابقتين! يرجى إعادة التحقق.")
+            return
+
+        self.security.set_admin_password(p1)
+        self.security.clear_reset_otp()
+        QMessageBox.information(self, "تم النجاح", "تم تعيين كلمة مرور جديدة بنجاح! سيتم فتح لوحة التحكم الآن ✅")
+        self.accept()
+
+class PasswordDialog(QDialog):
+    def __init__(self, db=None, parent=None):
+        super().__init__(parent)
+        self.db = db or DBManager()
         self.setWindowTitle("دخول لوحة التحكم الأبوية | Parent Login")
-        self.setFixedSize(360, 180)
+        self.setFixedSize(380, 240)
         self.setStyleSheet(STYLE_SHEET_DARK)
         self.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
         icon_path = os.path.join(BASE_DIR, "hassen_icon.png")
@@ -149,8 +268,18 @@ class PasswordDialog(QDialog):
 
         self.pwd_input = QLineEdit()
         self.pwd_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.pwd_input.setPlaceholderText("كلمة المرور (الافتراضية: haseen2026)")
+        self.pwd_input.setPlaceholderText("كلمة المرور")
         layout.addWidget(self.pwd_input)
+
+        self.chk_show = QCheckBox("👁️ إظهار كلمة المرور للتأكد")
+        self.chk_show.setStyleSheet("color: #94a3b8;")
+        self.chk_show.toggled.connect(lambda c: self.pwd_input.setEchoMode(QLineEdit.EchoMode.Normal if c else QLineEdit.EchoMode.Password))
+        layout.addWidget(self.chk_show)
+
+        self.btn_forgot = QPushButton("🔗 نسيت كلمة المرور؟ (استرجاع عبر البريد)")
+        self.btn_forgot.setStyleSheet("color: #38bdf8; background: none; border: none; text-align: right; text-decoration: underline; font-size: 12px; cursor: pointer;")
+        self.btn_forgot.clicked.connect(self.open_password_reset)
+        layout.addWidget(self.btn_forgot)
 
         btn_box = QHBoxLayout()
         self.login_btn = QPushButton("دخول ✅")
@@ -161,6 +290,12 @@ class PasswordDialog(QDialog):
         btn_box.addWidget(self.login_btn)
         btn_box.addWidget(self.cancel_btn)
         layout.addLayout(btn_box)
+
+    def open_password_reset(self):
+        dlg = ResetPasswordDialog(self.db, self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self.reset_successful = True
+            self.accept()
 
     def get_password(self):
         return self.pwd_input.text().strip()
@@ -489,10 +624,10 @@ class HaseenMainWindow(QMainWindow):
         QMessageBox.information(self, "اللغة / Language", "يرجى إعادة تشغيل الواجهة لتطبيق التغيير الكامل للغة")
 
     def open_parent_panel(self):
-        dlg = PasswordDialog(self)
+        dlg = PasswordDialog(self.db, self)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             pwd = dlg.get_password()
-            if self.security.verify_admin(pwd):
+            if getattr(dlg, 'reset_successful', False) or self.security.verify_admin(pwd):
                 from ui.admin_panel import ParentAdminDialog
                 admin = ParentAdminDialog(self)
                 admin.exec()

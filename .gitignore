@@ -5,3 +5,8 @@ __pycache__/
 temp_update/
 Backup_OldVersion/
 .pytest_cache/
+database/*.db
+database/*.db-shm
+database/*.db-wal
+*.zip
+temp_shortcut.vbs
