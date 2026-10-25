@@ -4,7 +4,7 @@ title Haseen Kids - Updater
 cd /d "%~dp0\.."
 
 echo ========================================================
-echo   [Haseen Kids] جاري فحص وتنزيل آخر التحديثات من GitHub...
+echo   [Haseen Kids] Checking and Downloading Latest Updates
 echo ========================================================
 echo.
 
@@ -13,15 +13,15 @@ if %ERRORLEVEL% EQU 0 (
     git pull origin main
     if %ERRORLEVEL% EQU 0 (
         echo.
-        echo [OK] تم تحديث كافة الملفات بنجاح إلى آخر إصدار! ✅
+        echo [OK] All project files updated successfully!
     ) else (
         echo.
-        echo [!] تعذر التحديث عبر git، تأكد من الاتصال بالإنترنت.
+        echo [!] Git pull failed. Please check your internet connection.
     )
 ) else (
-    echo [!] لم يتم العثور على أداة git على هذا الجهاز.
-    echo يمكنك التحديث التلقائي أيضاً من داخل البرنامج عبر:
-    echo لوحة تحكم ولي الأمر -> تبويب التحديثات -> فحص التحديثات.
+    echo [!] Git tool not found on this system.
+    echo Running automated GitHub package update...
+    call "%~dp0\..\install_from_github.bat"
 )
 
 echo.

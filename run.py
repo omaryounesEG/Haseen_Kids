@@ -25,10 +25,10 @@ def clean_stale_pid_files():
 
 def main():
     print("=" * 65)
-    print("      🛡️  حَصِين للأطفال | Haseen Kids - الحماية الأسرية الذكية")
+    print("      [Haseen Kids] Smart Family Protection System")
     print("=" * 65)
-    print(f"المسار الرئيسي: {BASE_DIR}")
-    print(f"مفسر بايثون: {PY_EXE}\n")
+    print(f"Base Directory: {BASE_DIR}")
+    print(f"Python Runtime: {PY_EXE}\n")
 
     # Clean old locks
     clean_stale_pid_files()
@@ -40,30 +40,30 @@ def main():
         flags = DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
 
     # 1. Start Service Daemon
-    print("[1/3] تشغيل الخدمة الخلفية والبروكسي المحلي (Core Daemon)...")
+    print("[1/3] Starting Core Daemon & Local Proxy...")
     try:
         subprocess.Popen([PY_EXE, SERVICE_SCRIPT], cwd=BASE_DIR, creationflags=flags)
-        print("  -> تم إطلاق الخدمة بنجاح ✅")
+        print("  -> Core Daemon launched successfully.")
     except Exception as e:
-        print(f"  -> تعذر إطلاق الخدمة كعملية منفصلة: {e}")
+        print(f"  -> Daemon launch notice: {e}")
 
     # 2. Start Watchdog
-    print("[2/3] تشغيل حارس المراقبة المزدوج (Mutual Watchdog)...")
+    print("[2/3] Starting Mutual Watchdog...")
     try:
         subprocess.Popen([PY_EXE, WATCHDOG_SCRIPT], cwd=BASE_DIR, creationflags=flags)
-        print("  -> تم إطلاق حارس المراقبة بنجاح ✅")
+        print("  -> Watchdog launched successfully.")
     except Exception as e:
-        print(f"  -> تعذر إطلاق الحارس: {e}")
+        print(f"  -> Watchdog launch notice: {e}")
 
     # 3. Launch UI Application in foreground
-    print("[3/3] فتح الواجهة الرسومية للبرنامج (UI Dashboard)...")
+    print("[3/3] Launching Haseen Kids UI Dashboard...")
     print("=" * 65)
     try:
         res = subprocess.run([PY_EXE, UI_SCRIPT], cwd=BASE_DIR)
         if res.returncode != 0:
-            print(f"\n⚠️ انتهت الواجهة برمز خروج: {res.returncode}")
+            print(f"\n[!] UI process exited with code: {res.returncode}")
     except Exception as e:
-        print("\n❌ حدث خطأ أثناء تشغيل الواجهة الرسومية:")
+        print("\n[!] Failed to launch UI process:")
         traceback.print_exc()
 
 if __name__ == "__main__":

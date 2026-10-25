@@ -4,7 +4,7 @@ title Haseen Kids - Master Setup
 cd /d "%~dp0"
 
 echo ========================================================
-echo   [Haseen Kids] معالج التثبيت الذكي لنظام حصين للأطفال
+echo   [Haseen Kids] Intelligent Setup Wizard
 echo ========================================================
 echo.
 
@@ -49,34 +49,34 @@ if "!BASE_PY!"=="" (
 
 if "!BASE_PY!"=="" (
     echo ========================================================
-    echo  [!] لم يتم العثور على مفسر بايثون على هذا الجهاز.
-    echo  جاري تحميل وتثبيت بايثون الرسمي تلقائياً...
+    echo  [!] Python not found on this machine.
+    echo  Downloading official Python 3.11 installer...
     echo ========================================================
-    powershell -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://www.python.org/ftp/python/3.11.9/python-3.11.9-amd64.exe' -OutFile '%TEMP%\python_installer.exe'"
+    powershell -NoProfile -Command "$ProgressPreference = 'SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://www.python.org/ftp/python/3.11.9/python-3.11.9-amd64.exe' -OutFile '%TEMP%\python_installer.exe'"
     if exist "%TEMP%\python_installer.exe" (
-        echo  جاري تثبيت Python في صمت...
+        echo  Installing Python silently...
         "%TEMP%\python_installer.exe" /quiet InstallAllUsers=1 PrependPath=1 Include_test=0
         timeout /t 10 /nobreak >nul
         set "BASE_PY=python"
     ) else (
-        echo  [X] يرجى تثبيت Python 3.11 من الموقع الرسمي: https://www.python.org
+        echo  [X] Please install Python 3.11 from: https://www.python.org
         pause
         exit /b 1
     )
 )
 
 :: 3. Prepare clean local venv on THIS machine
-echo [1/2] جاري تهيئة بيئة العمل الخاصة بجهازك محلياً (venv)...
+echo [1/2] Preparing local Python environment (venv)...
 if not exist "%~dp0venv\Scripts\python.exe" (
     "!BASE_PY!" -m venv "%~dp0venv"
 )
 
 :: 4. Auto-install all required libraries on this PC
-echo [2/2] جاري تثبيت المكتبات المطلوبة (PyQt6, yt-dlp, psutil, pillow)...
+echo [2/2] Installing required packages (PyQt6, yt-dlp, psutil, pillow)...
 "%~dp0venv\Scripts\python.exe" -m pip install --upgrade pip >nul 2>&1
 "%~dp0venv\Scripts\python.exe" -m pip install -r "%~dp0requirements.txt"
 if %ERRORLEVEL% NEQ 0 (
-    echo [!] فشل تثبيت بعض المكتبات عبر pip، جاري المحاولة المباشرة...
+    echo [!] Retrying direct installation of core dependencies...
     "%~dp0venv\Scripts\python.exe" -m pip install PyQt6 pywin32 psutil yt-dlp cryptography requests bcrypt pillow
 )
 
@@ -84,14 +84,14 @@ set "PY_EXE=%~dp0venv\Scripts\python.exe"
 
 :launch
 echo.
-echo [OK] تم تجهيز كافة المكتبات بنجاح ✅
-echo جاري فتح معالج التثبيت الرسومي...
+echo [OK] All dependencies ready!
+echo Launching Graphical Setup Wizard...
 echo ========================================================
 "!PY_EXE!" "%~dp0installer\setup_wizard.py"
 
 if %ERRORLEVEL% NEQ 0 (
     echo.
-    echo [ERROR] حدث خطأ أثناء تشغيل معالج التثبيت: كود %ERRORLEVEL%
+    echo [ERROR] Setup Wizard exited with error code: %ERRORLEVEL%
     pause
 )
 endlocal

@@ -42,8 +42,8 @@ if "!PY_EXE!"=="" (
 
 if "!PY_EXE!"=="" (
     echo ========================================================
-    echo  [ERROR] لم يتم العثور على مفسر بايثون على هذا الجهاز.
-    echo  يرجى تثبيت Python 3.11 أو تشغيل Setup.bat
+    echo  [ERROR] Python interpreter not found on this system.
+    echo  Please install Python 3.11 or run Setup.bat
     echo ========================================================
     pause
     exit /b 1
@@ -51,7 +51,7 @@ if "!PY_EXE!"=="" (
 
 :: 4. Auto-heal broken venv if on a new machine or drive
 if not exist "%~dp0\..\venv\Scripts\python.exe" (
-    echo [Haseen Kids] تهيئة البيئة البرمجية للجهاز الحالي...
+    echo [Haseen Kids] Preparing environment for this machine...
     "!PY_EXE!" -m venv "%~dp0\..\venv"
     "%~dp0\..\venv\Scripts\python.exe" -m pip install -r "%~dp0\..\requirements.txt"
     set "PY_EXE=%~dp0\..\venv\Scripts\python.exe"
@@ -60,7 +60,7 @@ if not exist "%~dp0\..\venv\Scripts\python.exe" (
 :: Verify PyQt6 is installed in venv
 "%~dp0\..\venv\Scripts\python.exe" -c "import PyQt6" >nul 2>&1
 if !ERRORLEVEL! NEQ 0 (
-    echo [Haseen Kids] تثبيت المكتبات المطلوبة على هذا الجهاز (PyQt6, yt-dlp)...
+    echo [Haseen Kids] Installing required dependencies (PyQt6, yt-dlp)...
     "%~dp0\..\venv\Scripts\python.exe" -m pip install -r "%~dp0\..\requirements.txt"
 )
 
