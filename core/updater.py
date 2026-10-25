@@ -23,13 +23,34 @@ from database.db_manager import DBManager
 EMBEDDED_PUBLIC_KEY_HEX = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
 
 class SecureGitHubUpdater:
-    def __init__(self, repo="omaryounesEG/Haseen_Kids", current_version="1.0.0", install_dir="H:\\Haseen_Kids"):
+    def __init__(self, repo="omaryounesEG/Haseen_Kids", current_version="1.0.0", install_dir=None):
         self.repo = repo
         self.current_version = current_version
-        self.install_dir = install_dir
+        self.install_dir = install_dir or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.temp_update_dir = os.path.join(self.install_dir, "temp_update")
         self.backup_dir = os.path.join(self.install_dir, "Backup_OldVersion")
         self.db = DBManager()
+
+    def check_biweekly_background_update(self, callback_on_update=None):
+        """
+        Lightweight passive check: checks GitHub only once every 14 days without background loops.
+        """
+        import time
+        try:
+            last_str = self.db.get_setting("last_biweekly_update_check", "0")
+            last_check = float(last_str) if last_str else 0
+            now = time.time()
+            # 14 days in seconds = 14 * 86400 = 1209600
+            if now - last_check < 1209600:
+                return False, self.current_version
+
+            self.db.set_setting("last_biweekly_update_check", str(now))
+            has_update, remote_ver, info, err = self.check_for_updates()
+            if has_update and callback_on_update:
+                callback_on_update(remote_ver)
+            return has_update, remote_ver
+        except Exception:
+            return False, self.current_version
 
     def check_for_updates(self):
         """

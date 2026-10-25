@@ -6,14 +6,16 @@ from PyQt6.QtWidgets import (
     QHeaderView, QMessageBox, QFormLayout, QComboBox,
     QCheckBox, QGroupBox, QSpinBox, QTimeEdit, QWidget
 )
-from PyQt6.QtCore import Qt, QTime
-from PyQt6.QtGui import QIcon
+from PyQt6.QtCore import Qt, QTime, QUrl
+from PyQt6.QtGui import QIcon, QDesktopServices
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database.db_manager import DBManager
 from core.security import SecurityManager
 from core.updater import SecureGitHubUpdater
 from core.reports import WeeklyReportGenerator
+from core.approvals import ApprovalManager
+from proxy.filter_engine import SmartFilterEngine
 
 STYLE_ADMIN = """
 QDialog { background-color: #0f172a; color: #f8fafc; }
@@ -275,25 +277,76 @@ class ParentAdminDialog(QDialog):
         v.addWidget(grp_prot)
 
         # AI Settings
-        grp_ai = QGroupBox("محرك الذكاء الاصطناعي (Micro-Prompting 30-tokens):")
+        grp_ai = QGroupBox("محرك الذكاء الاصطناعي لفحص المواقع غير المعروفة (Micro-Prompting):")
         f_ai = QFormLayout(grp_ai)
 
         self.cmb_ai = QComboBox()
-        self.cmb_ai.addItems(["gemini", "deepseek"])
-        self.cmb_ai.setCurrentText(settings.get("ai_provider", "gemini"))
+        self.cmb_ai.addItem("Google Gemini (مجاني 15 طلب/دقيقة)", "gemini")
+        self.cmb_ai.addItem("Groq - فائقة السرعة (مجاني 30 طلب/دقيقة)", "groq")
+        self.cmb_ai.addItem("OpenRouter (نماذج مجانية متعددة)", "openrouter")
+        self.cmb_ai.addItem("DeepSeek V3 (اقتصادي)", "deepseek")
+
+        # Set current selection
+        cur_prov = settings.get("ai_provider", "gemini")
+        idx = self.cmb_ai.findData(cur_prov)
+        if idx >= 0:
+            self.cmb_ai.setCurrentIndex(idx)
+
+        f_ai.addRow("المزود المختار:", self.cmb_ai)
+
+        # Provider Key links
+        h_links = QHBoxLayout()
+        btn_gemini_link = QPushButton("🔗 مفتاح Gemini مجاني")
+        btn_gemini_link.setStyleSheet("font-size: 11px; padding: 4px 8px; background: #0284c7;")
+        btn_gemini_link.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://aistudio.google.com/app/apikey")))
+
+        btn_groq_link = QPushButton("🔗 مفتاح Groq مجاني")
+        btn_groq_link.setStyleSheet("font-size: 11px; padding: 4px 8px; background: #059669;")
+        btn_groq_link.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://console.groq.com/keys")))
+
+        btn_or_link = QPushButton("🔗 مفتاح OpenRouter مجاني")
+        btn_or_link.setStyleSheet("font-size: 11px; padding: 4px 8px; background: #7c3aed;")
+        btn_or_link.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://openrouter.ai/keys")))
+
+        btn_ds_link = QPushButton("🔗 مفتاح DeepSeek")
+        btn_ds_link.setStyleSheet("font-size: 11px; padding: 4px 8px; background: #334155;")
+        btn_ds_link.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://platform.deepseek.com/api_keys")))
+
+        h_links.addWidget(btn_gemini_link)
+        h_links.addWidget(btn_groq_link)
+        h_links.addWidget(btn_or_link)
+        h_links.addWidget(btn_ds_link)
+        f_ai.addRow("استخراج مفاتيح مجانية:", h_links)
 
         self.in_gemini = QLineEdit(settings.get("gemini_api_key", ""))
         self.in_gemini.setEchoMode(QLineEdit.EchoMode.Password)
+        self.in_groq = QLineEdit(settings.get("groq_api_key", ""))
+        self.in_groq.setEchoMode(QLineEdit.EchoMode.Password)
+        self.in_openrouter = QLineEdit(settings.get("openrouter_api_key", ""))
+        self.in_openrouter.setEchoMode(QLineEdit.EchoMode.Password)
         self.in_deepseek = QLineEdit(settings.get("deepseek_api_key", ""))
         self.in_deepseek.setEchoMode(QLineEdit.EchoMode.Password)
 
-        f_ai.addRow("المزود الأساسي:", self.cmb_ai)
         f_ai.addRow("Gemini API Key:", self.in_gemini)
+        f_ai.addRow("Groq API Key:", self.in_groq)
+        f_ai.addRow("OpenRouter API Key:", self.in_openrouter)
         f_ai.addRow("DeepSeek API Key:", self.in_deepseek)
+
+        # AI Test Row
+        h_ai_test = QHBoxLayout()
+        btn_test_ai = QPushButton("🧪 اختبار اتصال ونشاط الـ API")
+        btn_test_ai.clicked.connect(self.test_ai_connection)
+        self.lbl_ai_led = QLabel("⚪ لم يتم اختبار اتصال الـ AI بعد")
+        self.lbl_ai_led.setStyleSheet("color: #94a3b8; font-size: 12px; font-weight: bold;")
+        h_ai_test.addWidget(btn_test_ai)
+        h_ai_test.addWidget(self.lbl_ai_led)
+        h_ai_test.addStretch()
+        f_ai.addRow("", h_ai_test)
+
         v.addWidget(grp_ai)
 
         # Email & SMTP Settings
-        grp_mail = QGroupBox("إعدادات بريد الموافقات والتقارير الأسبوعية (SMTP):")
+        grp_mail = QGroupBox("إعدادات بريد الموافقات والتقارير الأسبوعية (Gmail SMTP):")
         f_mail = QFormLayout(grp_mail)
 
         self.in_parent_email = QLineEdit(settings.get("parent_email", ""))
@@ -302,10 +355,30 @@ class ParentAdminDialog(QDialog):
         self.in_smtp_pass.setEchoMode(QLineEdit.EchoMode.Password)
         self.in_smtp_server = QLineEdit(settings.get("smtp_server", "smtp.gmail.com"))
 
+        btn_app_pwd_link = QPushButton("🔗 استخراج كلمة مرور التطبيق من Google مباشرة (Google App Passwords)")
+        btn_app_pwd_link.setStyleSheet("background-color: #0284c7; color: white; padding: 6px 12px; font-weight: bold;")
+        btn_app_pwd_link.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://myaccount.google.com/apppasswords")))
+        f_mail.addRow("خطوة سريعة:", btn_app_pwd_link)
+
+        lbl_hint_pwd = QLabel("ملاحظة: اختر اسم 'Haseen Kids' وأنشئ كلمة مرور التطبيق وانسخ الـ 16 حرفاً هنا.")
+        lbl_hint_pwd.setStyleSheet("color: #94a3b8; font-size: 11px;")
+        f_mail.addRow("", lbl_hint_pwd)
+
         f_mail.addRow("بريد ولي الأمر المستلم:", self.in_parent_email)
         f_mail.addRow("بريد الإرسال (Gmail):", self.in_smtp_user)
-        f_mail.addRow("كلمة مرور التطبيق (App Password):", self.in_smtp_pass)
+        f_mail.addRow("كلمة مرور التطبيق (16 حرفاً):", self.in_smtp_pass)
         f_mail.addRow("سيرفر SMTP:", self.in_smtp_server)
+
+        # Mail Test & LED Row
+        h_mail_test = QHBoxLayout()
+        btn_test_smtp = QPushButton("🧪 فحص اتصال بريد Gmail")
+        btn_test_smtp.clicked.connect(self.test_smtp_mail)
+        self.lbl_mail_led = QLabel("⚪ لم يتم فحص الاتصال بعد")
+        self.lbl_mail_led.setStyleSheet("color: #94a3b8; font-size: 12px; font-weight: bold;")
+        h_mail_test.addWidget(btn_test_smtp)
+        h_mail_test.addWidget(self.lbl_mail_led)
+        h_mail_test.addStretch()
+        f_mail.addRow("", h_mail_test)
 
         btn_test_rep = QPushButton("إرسال تقرير أسبوعي تجريبي عبر البريد الآن 📊")
         btn_test_rep.clicked.connect(self.send_test_report)
@@ -328,17 +401,73 @@ class ParentAdminDialog(QDialog):
         else:
             QMessageBox.warning(self, "تنبيه", msg)
 
+    def test_ai_connection(self):
+        prov = self.cmb_ai.currentData() or "gemini"
+        key_map = {
+            "gemini": self.in_gemini.text().strip(),
+            "groq": self.in_groq.text().strip(),
+            "openrouter": self.in_openrouter.text().strip(),
+            "deepseek": self.in_deepseek.text().strip()
+        }
+        api_key = key_map.get(prov, "")
+        if not api_key:
+            self.lbl_ai_led.setText("🔴 يرجى إدخال مفتاح الـ API أولاً")
+            self.lbl_ai_led.setStyleSheet("color: #ef4444; font-size: 12px; font-weight: bold;")
+            return
+
+        self.lbl_ai_led.setText("⏳ جاري اختبار الاتصال...")
+        self.lbl_ai_led.setStyleSheet("color: #38bdf8; font-size: 12px; font-weight: bold;")
+        from PyQt6.QtWidgets import QApplication
+        QApplication.processEvents()
+
+        ok, msg = SmartFilterEngine.test_ai_provider(prov, api_key)
+        if ok:
+            self.lbl_ai_led.setText(f"🟢 {msg}")
+            self.lbl_ai_led.setStyleSheet("color: #34d399; font-size: 12px; font-weight: bold; background: rgba(16, 185, 129, 0.15); padding: 4px 8px; border-radius: 4px;")
+            QMessageBox.information(self, "نجاح فحص الـ API", msg)
+        else:
+            self.lbl_ai_led.setText(f"🔴 {msg[:60]}")
+            self.lbl_ai_led.setStyleSheet("color: #ef4444; font-size: 12px; font-weight: bold;")
+            QMessageBox.critical(self, "فشل فحص الـ API", msg)
+
+    def test_smtp_mail(self):
+        user = self.in_smtp_user.text().strip()
+        pwd = self.in_smtp_pass.text().strip()
+        srv = self.in_smtp_server.text().strip() or "smtp.gmail.com"
+
+        if not user or not pwd:
+            self.lbl_mail_led.setText("🔴 أدخل بريد الإرسال وكلمة مرور التطبيق أولاً")
+            self.lbl_mail_led.setStyleSheet("color: #ef4444; font-size: 12px; font-weight: bold;")
+            return
+
+        self.lbl_mail_led.setText("⏳ جاري فحص الاتصال بسيرفر Google...")
+        self.lbl_mail_led.setStyleSheet("color: #38bdf8; font-size: 12px; font-weight: bold;")
+        from PyQt6.QtWidgets import QApplication
+        QApplication.processEvents()
+
+        ok, msg = ApprovalManager.test_smtp_connection(user, pwd, srv)
+        if ok:
+            self.lbl_mail_led.setText("🟢 متصل بنجاح وجاهز للإرسال والاستقبال ✅")
+            self.lbl_mail_led.setStyleSheet("color: #34d399; font-size: 12px; font-weight: bold; background: rgba(16, 185, 129, 0.15); padding: 4px 8px; border-radius: 4px;")
+            QMessageBox.information(self, "نجاح الاتصال بالبريد", msg)
+        else:
+            self.lbl_mail_led.setText("🔴 فشل الاتصال - راجع كلمة المرور")
+            self.lbl_mail_led.setStyleSheet("color: #ef4444; font-size: 12px; font-weight: bold;")
+            QMessageBox.critical(self, "فشل الاتصال بالبريد", msg)
+
     def save_security_settings(self):
         self.db.set_setting("process_lockdown", "1" if self.chk_lockdown.isChecked() else "0")
         self.db.set_setting("youtube_clean_mode", "1" if self.chk_yt_clean.isChecked() else "0")
-        self.db.set_setting("ai_provider", self.cmb_ai.currentText())
+        self.db.set_setting("ai_provider", self.cmb_ai.currentData() or "gemini")
         self.db.set_setting("gemini_api_key", self.in_gemini.text().strip())
+        self.db.set_setting("groq_api_key", self.in_groq.text().strip())
+        self.db.set_setting("openrouter_api_key", self.in_openrouter.text().strip())
         self.db.set_setting("deepseek_api_key", self.in_deepseek.text().strip())
         self.db.set_setting("parent_email", self.in_parent_email.text().strip())
         self.db.set_setting("smtp_user", self.in_smtp_user.text().strip())
         self.db.set_setting("smtp_app_password", self.in_smtp_pass.text().strip())
         self.db.set_setting("smtp_server", self.in_smtp_server.text().strip())
-        QMessageBox.information(self, "نجاح", "تم حفظ كافة إعدادات الحماية والبريد بنجاح ✅")
+        QMessageBox.information(self, "نجاح", "تم حفظ كافة إعدادات الحماية ومفاتيح الـ AI والبريد بنجاح ✅")
 
     def send_test_report(self):
         self.save_security_settings()

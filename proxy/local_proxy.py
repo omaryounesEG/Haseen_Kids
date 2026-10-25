@@ -16,17 +16,20 @@ BLOCKED_HTML_TEMPLATE = """<!DOCTYPE html>
     <meta charset="UTF-8">
     <title>حصين - الموقع محجوب</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f172a; color: #f8fafc; text-align: center; padding: 40px 20px; }
-        .card { background: #1e293b; max-width: 600px; margin: 0 auto; border-radius: 16px; padding: 32px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); border: 1px solid #334155; }
-        .icon { font-size: 64px; margin-bottom: 16px; }
-        h1 { color: #f43f5e; margin-bottom: 8px; font-size: 26px; }
-        p { color: #94a3b8; font-size: 16px; line-height: 1.6; }
-        .domain-box { background: #0f172a; padding: 12px; border-radius: 8px; font-family: monospace; font-size: 16px; color: #38bdf8; margin: 16px 0; word-break: break-all; }
-        .btn { background: #3b82f6; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 16px; cursor: pointer; text-decoration: none; display: inline-block; transition: background 0.2s; }
-        .btn:hover { background: #2563eb; }
-        .form-box { margin-top: 24px; text-align: right; }
-        input[type="text"], textarea { width: 100%; box-sizing: border-box; background: #0f172a; border: 1px solid #475569; color: white; padding: 10px; border-radius: 8px; margin-top: 6px; font-family: inherit; }
-        .code-sec { margin-top: 20px; border-top: 1px dashed #334155; padding-top: 16px; }
+        body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f172a; color: #f8fafc; text-align: center; padding: 40px 20px; }}
+        .card {{ background: #1e293b; max-width: 600px; margin: 0 auto; border-radius: 16px; padding: 32px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); border: 1px solid #334155; }}
+        .icon {{ font-size: 64px; margin-bottom: 16px; }}
+        h1 {{ color: #f43f5e; margin-bottom: 8px; font-size: 26px; }}
+        p {{ color: #94a3b8; font-size: 16px; line-height: 1.6; }}
+        .domain-box {{ background: #0f172a; padding: 12px; border-radius: 8px; font-family: monospace; font-size: 16px; color: #38bdf8; margin: 16px 0; word-break: break-all; }}
+        .btn {{ background: #3b82f6; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 16px; cursor: pointer; text-decoration: none; display: inline-block; transition: background 0.2s; font-weight: bold; }}
+        .btn:hover {{ background: #2563eb; }}
+        .form-box {{ margin-top: 24px; text-align: right; }}
+        input[type="text"], textarea {{ width: 100%; box-sizing: border-box; background: #0f172a; border: 1px solid #475569; color: white; padding: 10px; border-radius: 8px; margin-top: 6px; font-family: inherit; }}
+        .code-sec {{ margin-top: 20px; border-top: 1px dashed #334155; padding-top: 16px; }}
+        .waiting-box {{ display: none; background: #0f172a; border: 1px solid #38bdf8; border-radius: 12px; padding: 20px; margin-top: 20px; }}
+        .pulse {{ animation: pulse 1.5s infinite; }}
+        @keyframes pulse {{ 0% {{ opacity: 0.6; }} 50% {{ opacity: 1; }} 100% {{ opacity: 0.6; }} }}
     </style>
 </head>
 <body>
@@ -37,20 +40,25 @@ BLOCKED_HTML_TEMPLATE = """<!DOCTYPE html>
         <div class="domain-box">{domain}</div>
         <p><strong>السبب:</strong> {reason}</p>
 
-        <div class="form-box">
+        <div id="waitingCard" class="waiting-box">
+            <h3 class="pulse" style="color: #38bdf8; margin: 0 0 10px 0;">⏳ تم إرسال طلبك لوالدك بنجاح!</h3>
+            <p style="margin: 0;">يتم الآن انتظار موافقة ولي الأمر... سيتم فتح الموقع تلقائياً بمجرد الموافقة دون الحاجة لتحديث الصفحة.</p>
+        </div>
+
+        <div id="formContainer" class="form-box">
             <h3>طلب إذن من ولي الأمر</h3>
-            <form action="http://127.0.0.1:8089/request_exception" method="POST">
-                <input type="hidden" name="domain" value="{domain}">
-                <input type="hidden" name="url" value="{url}">
+            <form id="reqForm" onsubmit="sendRequestAsync(event)">
+                <input type="hidden" id="reqDomain" value="{domain}">
+                <input type="hidden" id="reqUrl" value="{url}">
                 <label>لماذا تحتاج فتح هذا الموقع؟</label>
-                <textarea name="reason" rows="2" placeholder="اكتب سبب حاجتك للموقع (مثلاً: للبحث المدرسي)" required></textarea>
+                <textarea id="reqReason" rows="2" placeholder="اكتب سبب حاجتك للموقع (مثلاً: للبحث المدرسي)" required></textarea>
                 <div style="text-align: center; margin-top: 12px;">
-                    <button type="submit" class="btn">إرسال طلب استثناء لوالدي 📧</button>
+                    <button type="submit" id="btnSubmitReq" class="btn">إرسال طلب استثناء لوالدي 📧</button>
                 </div>
             </form>
 
             <div class="code-sec">
-                <h3>هل لديك رمز موافقة من والدك؟</h3>
+                <h3>هل لديك رمز موافقة مسبق من والدك؟</h3>
                 <form action="http://127.0.0.1:8089/verify_code" method="POST">
                     <input type="text" name="code" placeholder="أدخل رمز الموافقة (مثال: 102948)" required>
                     <div style="text-align: center; margin-top: 10px;">
@@ -60,9 +68,55 @@ BLOCKED_HTML_TEMPLATE = """<!DOCTYPE html>
             </div>
         </div>
     </div>
+
+    <script>
+    async function sendRequestAsync(e) {{
+        e.preventDefault();
+        const btn = document.getElementById('btnSubmitReq');
+        const domain = document.getElementById('reqDomain').value;
+        const url = document.getElementById('reqUrl').value;
+        const reason = document.getElementById('reqReason').value;
+
+        btn.disabled = true;
+        btn.innerHTML = 'جاري إرسال الطلب لوالدك... ⏳';
+
+        try {{
+            const formData = new URLSearchParams();
+            formData.append('domain', domain);
+            formData.append('url', url);
+            formData.append('reason', reason);
+
+            await fetch('http://127.0.0.1:8089/request_exception', {{
+                method: 'POST',
+                headers: {{ 'Content-Type': 'application/x-www-form-urlencoded' }},
+                body: formData
+            }});
+
+            document.getElementById('formContainer').style.display = 'none';
+            document.getElementById('waitingCard').style.display = 'block';
+
+            // Poll every 3 seconds
+            const timer = setInterval(async () => {{
+                try {{
+                    const chk = await fetch('http://127.0.0.1:8089/check_status?domain=' + encodeURIComponent(domain));
+                    const data = await chk.json();
+                    if (data.allowed) {{
+                        clearInterval(timer);
+                        document.getElementById('waitingCard').innerHTML = '<h2 style=\"color:#10b981;\">🎉 تمت موافقة والدك! جاري فتح الموقع الآن...</h2>';
+                        setTimeout(() => {{ window.location.href = url || ('http://' + domain); }}, 1200);
+                    }}
+                }} catch(err) {{}}
+            }}, 3000);
+
+        }} catch(err) {{
+            btn.disabled = false;
+            btn.innerHTML = 'إرسال طلب استثناء لوالدي 📧';
+            alert('تعذر إرسال الطلب: ' + err);
+        }}
+    }}
+    </script>
 </body>
-</html>
-"""
+</html>"""
 
 class LocalProxyServer:
     def __init__(self, host="127.0.0.1", port=8089):
@@ -266,6 +320,28 @@ class LocalProxyServer:
             <p><a href='http://{domain or ""}' style='color:#38bdf8;'>الانتقال للموقع الآن</a> | <a href='javascript:history.back()' style='color:#94a3b8;'>الرجوع</a></p>
             </div></body></html>"""
             resp = f"HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {len(html.encode('utf-8'))}\r\n\r\n{html}"
+            writer.write(resp.encode('utf-8'))
+            await writer.drain()
+            writer.close()
+            return
+
+        if "/check_status" in target:
+            parsed = urllib.parse.urlparse(target)
+            qs = urllib.parse.parse_qs(parsed.query)
+            chk_domain = qs.get('domain', [''])[0]
+            allowed = False
+            if chk_domain:
+                action, cat, reason, src = self.filter.evaluate_url(f"https://{chk_domain}")
+                if action in ['ALLOW', 'REDIRECT_YOUTUBE']:
+                    allowed = True
+            resp_body = json.dumps({"allowed": allowed, "domain": chk_domain})
+            resp = (
+                f"HTTP/1.1 200 OK\r\n"
+                f"Content-Type: application/json\r\n"
+                f"Access-Control-Allow-Origin: *\r\n"
+                f"Content-Length: {len(resp_body.encode('utf-8'))}\r\n\r\n"
+                f"{resp_body}"
+            )
             writer.write(resp.encode('utf-8'))
             await writer.drain()
             writer.close()

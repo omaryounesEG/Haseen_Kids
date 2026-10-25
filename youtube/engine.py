@@ -138,11 +138,20 @@ class YouTubeEngine:
 
     def play_video(self, video_url_or_id):
         """
-        Launches isolated clean stream player (MPV or VLC) without any ads.
+        Launches isolated clean stream player (MPV, VLC, or System Media Player) without any ads.
         """
         info = self.get_stream_info(video_url_or_id)
         if "error" in info or not info.get("stream_url"):
-            return False, f"Failed to extract stream: {info.get('error', 'No stream URL')}"
+            raw_err = str(info.get('error', 'No stream URL'))
+            # Clean ANSI terminal escape codes
+            clean_err = re.sub(r'\x1b\[[0-9;]*[mGKH]', '', raw_err)
+            if "is unavailable" in clean_err:
+                msg = "هذا المقطع غير متوفر على يوتيوب حالياً (ربما تم حذفه أو جعله خاصاً من قِبل الناشر)."
+            elif "Private video" in clean_err:
+                msg = "هذا الفيديو خاص ولا يمكن تشغيله."
+            else:
+                msg = f"تعذر استخراج البث النظيف: {clean_err}"
+            return False, msg
 
         stream_url = info["stream_url"]
         title = info["title"]
@@ -151,11 +160,10 @@ class YouTubeEngine:
         # Priority 1: MPV
         if self.mpv_path:
             mpv_args = [self.mpv_path, stream_url, f"--title=حصين - {title}"]
-            # Add sponsorblock EDL or scripts if configured
             try:
                 subprocess.Popen(mpv_args)
-                return True, "Started MPV Player"
-            except Exception as e:
+                return True, "تم التشغيل عبر مشغل MPV المعزول"
+            except Exception:
                 pass
 
         # Priority 2: VLC
@@ -163,11 +171,18 @@ class YouTubeEngine:
             vlc_args = [self.vlc_path, stream_url, "--meta-title", f"حصين: {title}", "--play-and-exit"]
             try:
                 subprocess.Popen(vlc_args)
-                return True, "Started VLC Player"
+                return True, "تم التشغيل عبر مشغل VLC المعزول"
             except Exception as e:
-                return False, f"Error launching VLC: {e}"
+                return False, f"خطأ أثناء تشغيل VLC: {e}"
 
-        return False, "No external player (MPV/VLC) available. Use internal embedded player."
+        # Priority 3: Windows Default Media Player / Stream Handler
+        try:
+            os.startfile(stream_url)
+            return True, "تم التشغيل عبر مشغل الوسائط المعتمد في ويندوز"
+        except Exception:
+            pass
+
+        return False, "لم يتم العثور على مشغل وسائط (VLC أو MPV) على الجهاز."
 
 if __name__ == "__main__":
     engine = YouTubeEngine()

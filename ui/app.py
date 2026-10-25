@@ -225,6 +225,17 @@ class HaseenMainWindow(QMainWindow):
         t_tr = threading.Thread(target=run_tracker, daemon=True)
         t_tr.start()
 
+        # Passive biweekly update check (1-second query once every 14 days, zero continuous overhead)
+        def run_update_check():
+            try:
+                self.updater.check_biweekly_background_update(callback_on_update=self.on_biweekly_update_found)
+            except Exception:
+                pass
+        threading.Thread(target=run_update_check, daemon=True).start()
+
+    def on_biweekly_update_found(self, new_ver):
+        print(f"[Haseen Updater] New release available on GitHub: v{new_ver}")
+
     def apply_layout_direction(self):
         if self.current_lang == "ar":
             self.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
@@ -358,9 +369,9 @@ class HaseenMainWindow(QMainWindow):
         v_rec = QVBoxLayout(grp_rec)
 
         samples = [
-            ("فيلم وثائقي للأطفال عن الفضاء (National Geographic)", "https://www.youtube.com/watch?v=libKVRa01L8"),
-            ("تعلم أساسيات البرمجة للأطفال ببساطة (Scratch)", "https://www.youtube.com/watch?v=jXUZha4Wst0"),
-            ("قصص الأنبياء للأطفال بصوت رائع", "https://www.youtube.com/watch?v=2k7G3EFrLrk")
+            ("حيوانات صديقة على غير العادة (National Geographic)", "https://www.youtube.com/watch?v=wi_ig8NYTvY"),
+            ("عوالم الجليد القطبيّة - الكوكب المعادي (National Geographic)", "https://www.youtube.com/watch?v=TqcrhAljNDI"),
+            ("ناشونال جيوغرافيك كيدز - المساهمون الصغار", "https://www.youtube.com/watch?v=yiC-MPRffVY")
         ]
 
         for title, link in samples:

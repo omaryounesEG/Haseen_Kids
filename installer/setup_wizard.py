@@ -20,14 +20,75 @@ from installer.preflight import SystemPreflightChecker
 from core.security import SecurityManager
 
 STYLE_WIZARD = """
-QWizard, QDialog { background-color: #0f172a; color: #f8fafc; }
-QWidget { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; font-size: 13px; color: #f8fafc; }
-QGroupBox { border: 1px solid #334155; border-radius: 8px; margin-top: 15px; padding-top: 15px; font-weight: bold; color: #38bdf8; }
-QPushButton { background-color: #2563eb; color: white; border: none; border-radius: 6px; padding: 8px 16px; font-weight: bold; }
-QPushButton:hover { background-color: #1d4ed8; }
-QLineEdit { background-color: #1e293b; border: 1px solid #475569; border-radius: 4px; padding: 6px; color: white; }
-QProgressBar { border: 1px solid #334155; border-radius: 6px; text-align: center; background: #1e293b; color: white; font-weight: bold; }
-QProgressBar::chunk { background-color: #10b981; border-radius: 5px; }
+QWizard, QWizardPage, QDialog {
+    background-color: #0f172a;
+    color: #f8fafc;
+}
+QWidget {
+    font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+    font-size: 13px;
+    color: #f8fafc;
+    background-color: transparent;
+}
+QWizard QWidget#qt_wizard_page {
+    background-color: #0f172a;
+}
+QLabel {
+    color: #f8fafc;
+}
+QGroupBox {
+    background-color: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    margin-top: 15px;
+    padding-top: 20px;
+    padding-left: 10px;
+    padding-right: 10px;
+    padding-bottom: 10px;
+    font-weight: bold;
+    color: #38bdf8;
+}
+QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top right;
+    padding: 2px 8px;
+    color: #38bdf8;
+}
+QCheckBox {
+    color: #f8fafc;
+    spacing: 8px;
+}
+QPushButton {
+    background-color: #2563eb;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 18px;
+    font-weight: bold;
+    font-size: 13px;
+}
+QPushButton:hover {
+    background-color: #1d4ed8;
+}
+QLineEdit {
+    background-color: #0f172a;
+    border: 1px solid #475569;
+    border-radius: 4px;
+    padding: 6px;
+    color: white;
+}
+QProgressBar {
+    border: 1px solid #334155;
+    border-radius: 6px;
+    text-align: center;
+    background: #0f172a;
+    color: white;
+    font-weight: bold;
+}
+QProgressBar::chunk {
+    background-color: #10b981;
+    border-radius: 5px;
+}
 """
 
 # Worker for downloading Brave in background without freezing UI
@@ -93,7 +154,7 @@ class DiagnosticsPage(QWizardPage):
         layout.addWidget(self.grp_browsers)
 
         # Brave auto download box
-        self.grp_brave = QGroupBox("متصفح Brave الآمن (الموصى به للأطفال):")
+        self.grp_brave = QGroupBox("متصفح Brave الآمن للأطفال (موصى به):")
         v_brave = QVBoxLayout(self.grp_brave)
         self.chk_install_brave = QCheckBox("تحميل وتثبيت متصفح Brave الرسمي المعتمد تلقائياً")
         self.chk_install_brave.setChecked(True)
@@ -108,14 +169,13 @@ class DiagnosticsPage(QWizardPage):
         res = self.checker.check_system_resources()
         win_label = "Windows 7 (متوافق مع مكتبات التوافق)" if res["is_win7"] else res["os"]
         self.lbl_res.setText(
-            f"• نظام التشغيل: {win_label}<br>"
-            f"• الذاكرة العشوائية: {res['total_ram_gb']} GB (المتاح: {res['avail_ram_gb']} GB) ✅<br>"
-            f"• أنوية المعالج: {res['cpu_cores']} Cores ✅"
+            f"<b style='color:#f8fafc;'>• نظام التشغيل:</b> <span style='color:#38bdf8;'>{win_label}</span><br>"
+            f"<b style='color:#f8fafc;'>• الذاكرة العشوائية:</b> <span style='color:#10b981;'>{res['total_ram_gb']} GB</span> (المتاح: {res['avail_ram_gb']} GB) ✅<br>"
+            f"<b style='color:#f8fafc;'>• أنوية المعالج:</b> <span style='color:#10b981;'>{res['cpu_cores']} Cores</span> ✅"
         )
         self.lbl_res.setTextFormat(Qt.TextFormat.RichText)
 
         # Scan browsers
-        # Clear old widgets
         while self.v_browsers.count():
             item = self.v_browsers.takeAt(0)
             if item.widget():
@@ -124,8 +184,8 @@ class DiagnosticsPage(QWizardPage):
         browsers = self.checker.detect_browsers()
         for b_id, b_info in browsers.items():
             status = "مثبت ومكتشف ✅" if b_info["installed"] else "غير مثبت ❌"
-            color = "#10b981" if b_info["installed"] else "#94a3b8"
-            l = QLabel(f"• {b_info['name']}: <span style='color:{color}; font-weight:bold;'>{status}</span>")
+            color = "#10b981" if b_info["installed"] else "#ef4444"
+            l = QLabel(f"<b style='color:#f8fafc;'>• {b_info['name']}:</b> <span style='color:{color}; font-weight:bold;'>{status}</span>")
             l.setTextFormat(Qt.TextFormat.RichText)
             self.v_browsers.addWidget(l)
 
@@ -271,9 +331,21 @@ class HaseenSetupWizard(QWizard):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("معالج تثبيت حَصِين للأطفال | Haseen Kids Setup")
-        self.resize(650, 480)
+        self.resize(680, 520)
+        self.setWizardStyle(QWizard.WizardStyle.ClassicStyle)
         self.setStyleSheet(STYLE_WIZARD)
         self.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+
+        from PyQt6.QtGui import QColor, QPalette
+        pal = self.palette()
+        pal.setColor(QPalette.ColorRole.Window, QColor("#0f172a"))
+        pal.setColor(QPalette.ColorRole.WindowText, QColor("#f8fafc"))
+        pal.setColor(QPalette.ColorRole.Base, QColor("#1e293b"))
+        pal.setColor(QPalette.ColorRole.Text, QColor("#f8fafc"))
+        pal.setColor(QPalette.ColorRole.Button, QColor("#1e293b"))
+        pal.setColor(QPalette.ColorRole.ButtonText, QColor("#f8fafc"))
+        self.setPalette(pal)
+
         icon_path = os.path.join(BASE_DIR, "hassen_icon.png")
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))

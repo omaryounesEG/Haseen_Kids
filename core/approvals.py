@@ -117,13 +117,36 @@ class ApprovalManager:
         msg.attach(MIMEText(html, 'html', 'utf-8'))
 
         try:
+            clean_pass = smtp_pass.replace(" ", "")
             with smtplib.SMTP(smtp_server, smtp_port, timeout=10) as server:
+                server.ehlo()
                 server.starttls()
-                server.login(smtp_user, smtp_pass)
+                server.ehlo()
+                server.login(smtp_user, clean_pass)
                 server.sendmail(smtp_user, parent_email, msg.as_string())
             return True, None
         except Exception as e:
             return False, str(e)
+
+    @staticmethod
+    def test_smtp_connection(smtp_user, smtp_pass, smtp_server="smtp.gmail.com", smtp_port=587):
+        """
+        Tests SMTP connectivity and authentication with Gmail/custom SMTP server.
+        """
+        if not smtp_user or not smtp_pass:
+            return False, "يرجى إدخال عنوان البريد وكلمة مرور التطبيق أولاً"
+        clean_pass = smtp_pass.replace(" ", "")
+        try:
+            with smtplib.SMTP(smtp_server, smtp_port, timeout=8) as server:
+                server.ehlo()
+                server.starttls()
+                server.ehlo()
+                server.login(smtp_user, clean_pass)
+            return True, "تم الاتصال بنجاح بسيرفر البريد! كلمة المرور صحيحة ومفعلة للإرسال والاستقبال ✅"
+        except smtplib.SMTPAuthenticationError as e:
+            return False, f"فشل تسجيل الدخول: تأكد من استخدام كلمة مرور التطبيق المكونة من 16 حرفاً من حساب Google. الخطأ: {e}"
+        except Exception as e:
+            return False, f"تعذر الاتصال بسيرفر البريد: {str(e)}"
 
 if __name__ == "__main__":
     am = ApprovalManager()

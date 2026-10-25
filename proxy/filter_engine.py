@@ -18,6 +18,8 @@ class SmartFilterEngine:
     def _load_keys(self):
         self.gemini_key = self.db.get_setting("gemini_api_key", "")
         self.deepseek_key = self.db.get_setting("deepseek_api_key", "")
+        self.groq_key = self.db.get_setting("groq_api_key", "")
+        self.openrouter_key = self.db.get_setting("openrouter_api_key", "")
         self.ai_provider = self.db.get_setting("ai_provider", "gemini")
 
     def evaluate_url(self, url):
@@ -121,9 +123,8 @@ class SmartFilterEngine:
         """Tier 3: Evaluates domain using Gemini Flash or DeepSeek micro-prompt"""
         title, desc = self._extract_page_metadata(url or f"https://{domain}")
 
-        # Check if API keys exist
-        if not self.gemini_key and not self.deepseek_key:
-            # Conservative default fallback
+        # Check if any API keys exist
+        if not any([self.gemini_key, self.deepseek_key, self.groq_key, self.openrouter_key]):
             action = "ALLOW"
             category = "SAFE"
             self.db.save_domain_decision(domain, action, category, "DEFAULT_FALLBACK", title=title)
@@ -135,6 +136,58 @@ class SmartFilterEngine:
             "title": title,
             "desc": desc
         }
+
+        # Query Groq (Ultra-fast)
+        if self.ai_provider == "groq" and self.groq_key:
+            try:
+                headers = {"Authorization": f"Bearer {self.groq_key}", "Content-Type": "application/json"}
+                payload = {
+                    "model": "llama-3.1-8b-instant",
+                    "messages": [
+                        {"role": "system", "content": "Classify website for child safety. Reply strictly JSON: {\"cat\": \"SAFE|EDU|GAMING|ADULT|VIOLENCE\", \"act\": \"ALLOW|BLOCK\"}"},
+                        {"role": "user", "content": f"URL: {domain}, Title: {title}, Description: {desc}"}
+                    ],
+                    "temperature": 0.1,
+                    "max_tokens": 50
+                }
+                r = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=2.5)
+                if r.status_code == 200:
+                    content = r.json()['choices'][0]['message']['content']
+                    m = re.search(r'\{.*\}', content, re.DOTALL)
+                    if m:
+                        data = json.loads(m.group(0))
+                        act = data.get("act", "BLOCK")
+                        cat = data.get("cat", "SAFE")
+                        self.db.save_domain_decision(domain, act, cat, "AI_GROQ", title=title)
+                        return act, cat, f"تصنيف ذكي (Groq): {cat}", "AI_GROQ"
+            except Exception:
+                pass
+
+        # Query OpenRouter (Free Tier)
+        if self.ai_provider == "openrouter" and self.openrouter_key:
+            try:
+                headers = {"Authorization": f"Bearer {self.openrouter_key}", "Content-Type": "application/json"}
+                payload = {
+                    "model": "deepseek/deepseek-chat:free",
+                    "messages": [
+                        {"role": "system", "content": "Classify website for child safety. Reply strictly JSON: {\"cat\": \"SAFE|EDU|GAMING|ADULT|VIOLENCE\", \"act\": \"ALLOW|BLOCK\"}"},
+                        {"role": "user", "content": f"URL: {domain}, Title: {title}, Description: {desc}"}
+                    ],
+                    "temperature": 0.1,
+                    "max_tokens": 50
+                }
+                r = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=3.5)
+                if r.status_code == 200:
+                    content = r.json()['choices'][0]['message']['content']
+                    m = re.search(r'\{.*\}', content, re.DOTALL)
+                    if m:
+                        data = json.loads(m.group(0))
+                        act = data.get("act", "BLOCK")
+                        cat = data.get("cat", "SAFE")
+                        self.db.save_domain_decision(domain, act, cat, "AI_OPENROUTER", title=title)
+                        return act, cat, f"تصنيف ذكي (OpenRouter Free): {cat}", "AI_OPENROUTER"
+            except Exception:
+                pass
 
         # Query Gemini
         if self.ai_provider == "gemini" and self.gemini_key:
@@ -189,6 +242,56 @@ class SmartFilterEngine:
         category = "SAFE"
         self.db.save_domain_decision(domain, action, category, "HEURISTIC_FALLBACK", title=title)
         return action, category, "مسموح احتياطياً", "HEURISTIC_FALLBACK"
+
+    @staticmethod
+    def test_ai_provider(provider, api_key):
+        """
+        Tests API connectivity, validity and latency with a 1-token ping.
+        """
+        import time
+        t0 = time.time()
+        if not api_key:
+            return False, "يرجى إدخال مفتاح الـ API أولاً"
+
+        try:
+            if provider == "gemini":
+                import google.generativeai as genai
+                genai.configure(api_key=api_key)
+                model = genai.GenerativeModel('gemini-1.5-flash')
+                res = model.generate_content("Say PONG")
+                latency = int((time.time() - t0) * 1000)
+                return True, f"الاتصال بـ Google Gemini نشط وناجح! زمن الاستجابة: {latency}ms ✅"
+
+            elif provider == "groq":
+                headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+                payload = {"model": "llama-3.1-8b-instant", "messages": [{"role": "user", "content": "PONG"}], "max_tokens": 5}
+                r = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=5)
+                latency = int((time.time() - t0) * 1000)
+                if r.status_code == 200:
+                    return True, f"الاتصال بـ Groq نشط وفائق السرعة! زمن الاستجابة: {latency}ms ⚡"
+                return False, f"فشل الاتصال بـ Groq: كود {r.status_code} - {r.text[:120]}"
+
+            elif provider == "openrouter":
+                headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+                payload = {"model": "deepseek/deepseek-chat:free", "messages": [{"role": "user", "content": "PONG"}], "max_tokens": 5}
+                r = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=6)
+                latency = int((time.time() - t0) * 1000)
+                if r.status_code == 200:
+                    return True, f"الاتصال بـ OpenRouter (Free) نشط وناجح! زمن الاستجابة: {latency}ms ✅"
+                return False, f"فشل الاتصال بـ OpenRouter: كود {r.status_code} - {r.text[:120]}"
+
+            elif provider == "deepseek":
+                headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+                payload = {"model": "deepseek-chat", "messages": [{"role": "user", "content": "PONG"}], "max_tokens": 5}
+                r = requests.post("https://api.deepseek.com/v1/chat/completions", headers=headers, json=payload, timeout=6)
+                latency = int((time.time() - t0) * 1000)
+                if r.status_code == 200:
+                    return True, f"الاتصال بـ DeepSeek نشط ومفعل! زمن الاستجابة: {latency}ms ✅"
+                return False, f"فشل الاتصال بـ DeepSeek: كود {r.status_code} - {r.text[:120]}"
+
+            return False, f"مزود غير معروف: {provider}"
+        except Exception as e:
+            return False, f"حدث خطأ أثناء اختبار الاتصال: {str(e)}"
 
 if __name__ == "__main__":
     fe = SmartFilterEngine()
