@@ -482,25 +482,35 @@ class ParentAdminDialog(QDialog):
         tab = QWidget()
         v = QVBoxLayout(tab)
 
-        grp_up = QGroupBox("التحديثات الآمنة اليدوية (Zero-Background GitHub Pull):")
+        grp_up = QGroupBox("التحديثات الآمنة والترقية المباشرة (GitHub Updates):")
         v_up = QVBoxLayout(grp_up)
 
-        lbl_desc = QLabel("لا يتصل البرنامج بالإنترنت للتحديث في الخلفية أبداً. يمكنك الفحص يدوياً فقط عند رغبتك:")
-        lbl_desc.setStyleSheet("color: #94a3b8;")
+        lbl_desc = QLabel("يمكنك فحص وتنزيل أحدث التحديثات والتحسينات مباشرة من GitHub دون فقد أي من إعداداتك أو كلمات المرور:")
+        lbl_desc.setStyleSheet("color: #94a3b8; line-height: 1.5;")
         v_up.addWidget(lbl_desc)
 
+        # Big One-Click Update Button
+        self.btn_direct_update = QPushButton("🚀 تحديث البرنامج فورا لآخر إصدار من GitHub (بضغطة واحدة)")
+        self.btn_direct_update.setStyleSheet("background-color: #10b981; color: white; padding: 12px 20px; font-size: 14px; font-weight: bold; border-radius: 8px;")
+        self.btn_direct_update.clicked.connect(self.run_direct_update)
+        v_up.addWidget(self.btn_direct_update)
+
+        self.lbl_update_progress = QLabel("")
+        self.lbl_update_progress.setStyleSheet("color: #38bdf8; font-weight: bold; font-size: 12px;")
+        v_up.addWidget(self.lbl_update_progress)
+
+        h_checks = QHBoxLayout()
         btn_chk = QPushButton("فحص التحديثات من GitHub 🔍")
         btn_chk.clicked.connect(self.check_github_updates)
-        v_up.addWidget(btn_chk)
+        h_checks.addWidget(btn_chk)
 
-        h_micro = QHBoxLayout()
         btn_ytdlp = QPushButton("🎬 تحديث محرك اليوتيوب yt-dlp فقط")
         btn_ytdlp.clicked.connect(self.update_ytdlp)
         btn_lists = QPushButton("🛡️ تحديث قوائم المواقع المحجوبة فقط")
         btn_lists.clicked.connect(self.update_lists)
-        h_micro.addWidget(btn_ytdlp)
-        h_micro.addWidget(btn_lists)
-        v_up.addLayout(h_micro)
+        h_checks.addWidget(btn_ytdlp)
+        h_checks.addWidget(btn_lists)
+        v_up.addLayout(h_checks)
 
         v.addWidget(grp_up)
 
@@ -520,12 +530,43 @@ class ParentAdminDialog(QDialog):
         v.addStretch()
         self.tabs.addTab(tab, "🔄 التحديثات والصيانة")
 
+    def run_direct_update(self):
+        reply = QMessageBox.question(
+            self,
+            "تحديث البرنامج",
+            "هل ترغب في تحديث كافة ملفات البرنامج الآن من GitHub؟\n(سيتم الحفاظ على كافة إعداداتك وكلمات المرور)",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        self.btn_direct_update.setEnabled(False)
+        self.lbl_update_progress.setText("جاري التحديث من GitHub...")
+        from PyQt6.QtWidgets import QApplication
+        QApplication.processEvents()
+
+        ok, msg = self.updater.update_from_github_direct(progress_callback=self.lbl_update_progress.setText)
+        self.btn_direct_update.setEnabled(True)
+        if ok:
+            self.lbl_update_progress.setText("اكتمل التحديث بنجاح! ✅")
+            QMessageBox.information(self, "نجاح التحديث", f"{msg}\n\nيرجى إعادة فتح البرنامج لتفعيل التعديلات الجديدة.")
+        else:
+            self.lbl_update_progress.setText("فشل التحديث ❌")
+            QMessageBox.critical(self, "فشل التحديث", msg)
+
     def check_github_updates(self):
         has_up, r_ver, info, err = self.updater.check_for_updates()
         if err:
             QMessageBox.information(self, "فحص التحديثات", err)
         elif has_up:
-            QMessageBox.information(self, "تحديث متوفر!", f"يتوفر إصدار جديد {r_ver} على GitHub.\nالتفاصيل: {info.get('notes', '')}")
+            reply = QMessageBox.question(
+                self,
+                "تحديث متوفر!",
+                f"يتوفر إصدار رسمي جديد v{r_ver} على GitHub!\nالتفاصيل: {info.get('notes', '')}\n\nهل ترغب في تطبيق التحديث الآن مباشرة؟",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+            if reply == QMessageBox.StandardButton.Yes:
+                self.run_direct_update()
         else:
             QMessageBox.information(self, "فحص التحديثات", f"البرنامج محدث لآخر إصدار ({self.updater.current_version}).")
 

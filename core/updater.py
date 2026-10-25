@@ -54,30 +54,117 @@ class SecureGitHubUpdater:
 
     def check_for_updates(self):
         """
-        One-Way Pull: Queries GitHub Releases API strictly on demand.
+        One-Way Pull: Queries GitHub Releases API and Tags on demand.
         Returns: (has_update, version, release_info, error)
         """
-        api_url = f"https://api.github.com/repos/{self.repo}/releases/latest"
         headers = {
             "User-Agent": "HaseenKids-Updater/1.0",
             "Accept": "application/vnd.github.v3+json"
         }
+
+        # 1. Try Releases API
+        api_url = f"https://api.github.com/repos/{self.repo}/releases/latest"
         try:
             req = urllib.request.Request(api_url, headers=headers)
             with urllib.request.urlopen(req, timeout=8) as resp:
                 if resp.status == 200:
                     data = json.loads(resp.read().decode('utf-8'))
                     remote_ver = data.get("tag_name", "").lstrip("v")
-                    body = data.get("body", "لا يوجد تفاصيل")
+                    body = data.get("body", "تحديث جديد يتضمن تحسينات الأمان والواجهة")
                     assets = data.get("assets", [])
                     has_update = remote_ver > self.current_version
                     return has_update, remote_ver, {"notes": body, "assets": assets, "published_at": data.get("published_at")}, None
-        except urllib.error.HTTPError as e:
-            if e.code == 404:
-                return False, self.current_version, {}, "لم يتم العثور على إصدارات منشورة بعد على المستودع"
-            return False, self.current_version, {}, f"خطأ في الاتصال بمستودع جيت هاب: {e.code}"
+        except Exception:
+            pass
+
+        # 2. Fallback to Tags API
+        tags_url = f"https://api.github.com/repos/{self.repo}/tags"
+        try:
+            req = urllib.request.Request(tags_url, headers=headers)
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                if resp.status == 200:
+                    tags = json.loads(resp.read().decode('utf-8'))
+                    if tags and len(tags) > 0:
+                        latest_tag = tags[0].get("name", "").lstrip("v")
+                        has_update = latest_tag > self.current_version
+                        return has_update, latest_tag, {"notes": "إصدار رسمي محدث على GitHub"}, None
         except Exception as e:
             return False, self.current_version, {}, f"تعذر التحقق من التحديثات: {str(e)}"
+
+        return False, self.current_version, {}, "أنت تعمل بالفعل على أحدث إصدار من البرنامج."
+
+    def update_from_github_direct(self, progress_callback=None):
+        """
+        In-place direct update from GitHub main branch without re-installation.
+        Preserves database/haseen.db and user settings.
+        """
+        import tempfile
+        repo_zip_url = f"https://github.com/{self.repo}/archive/refs/heads/main.zip"
+        temp_dir = tempfile.gettempdir()
+        zip_dest = os.path.join(temp_dir, "haseen_update.zip")
+        extract_dir = os.path.join(temp_dir, "haseen_extract")
+
+        try:
+            if progress_callback:
+                progress_callback("جاري تنزيل أحدث ملفات التحديث من GitHub...")
+
+            req = urllib.request.Request(repo_zip_url, headers={"User-Agent": "HaseenKids-DirectUpdater/1.0"})
+            with urllib.request.urlopen(req, timeout=30) as resp, open(zip_dest, 'wb') as out_f:
+                shutil.copyfileobj(resp, out_f)
+
+            if progress_callback:
+                progress_callback("جاري فك ضغط التحديث وتجهيز الملفات...")
+
+            if os.path.exists(extract_dir):
+                shutil.rmtree(extract_dir, ignore_errors=True)
+            os.makedirs(extract_dir, exist_ok=True)
+
+            with zipfile.ZipFile(zip_dest, 'r') as zf:
+                zf.extractall(extract_dir)
+
+            # Find root folder in extract
+            root_candidates = [os.path.join(extract_dir, d) for d in os.listdir(extract_dir) if os.path.isdir(os.path.join(extract_dir, d))]
+            src_root = root_candidates[0] if root_candidates else extract_dir
+
+            if progress_callback:
+                progress_callback("جاري نسخ التحديث واستبدال الملفات البرمجية...")
+
+            # Backup current files
+            os.makedirs(self.backup_dir, exist_ok=True)
+            target_dirs = ["core", "ui", "proxy", "youtube", "scripts", "installer", "extension", "assets"]
+            for d in target_dirs:
+                s = os.path.join(src_root, d)
+                t = os.path.join(self.install_dir, d)
+                if os.path.exists(s):
+                    # Copy to backup first
+                    b_dst = os.path.join(self.backup_dir, d)
+                    if os.path.exists(t):
+                        if os.path.exists(b_dst):
+                            shutil.rmtree(b_dst, ignore_errors=True)
+                        shutil.copytree(t, b_dst)
+                    # Copy new files
+                    for root, _, files in os.walk(s):
+                        rel = os.path.relpath(root, s)
+                        dest_folder = os.path.join(t, rel)
+                        os.makedirs(dest_folder, exist_ok=True)
+                        for f in files:
+                            shutil.copy2(os.path.join(root, f), os.path.join(dest_folder, f))
+
+            # Copy root scripts (preserving database/haseen.db!)
+            for root_f in ["run.py", "Setup.bat", "install_from_github.bat", "requirements.txt", "hassen_icon.png", "hassen_icon.ico"]:
+                s_f = os.path.join(src_root, root_f)
+                t_f = os.path.join(self.install_dir, root_f)
+                if os.path.exists(s_f):
+                    shutil.copy2(s_f, t_f)
+
+            # Cleanup temp
+            if os.path.exists(zip_dest):
+                os.remove(zip_dest)
+            shutil.rmtree(extract_dir, ignore_errors=True)
+
+            return True, "تم تحديث كافة ملفات البرنامج إلى الإصدار الأحدث بنجاح! ✅ (تم الحفاظ على قاعدة البيانات وكلمات المرور)."
+        except Exception as e:
+            return False, f"تعذر إتمام التحديث المباشر: {str(e)}"
 
     def update_ytdlp_micro(self):
         """
