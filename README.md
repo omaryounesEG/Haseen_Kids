@@ -3,7 +3,33 @@
 > **نظام الحماية والرقابة الأسرية الذكي + مشغل يوتيوب معزول بدون إعلانات**
 > *متوافق مع Windows 7 SP1 و 8 و 10 و 11*
 
-**الإصدار الحالي: `1.2.0`**
+**الإصدار الحالي: `1.2.0`** — [آخر إصدار | Latest release](https://github.com/omaryounesEG/Haseen_Kids/releases/latest)
+
+---
+
+## English (short version)
+
+**Haseen Kids** is a Windows family-protection app for Arabic-speaking households:
+a single whitelist that works on **every browser** (Chrome, Edge, Brave, Firefox),
+an **isolated ad-free YouTube player**, an Arabic block page where the child asks and
+the parent approves in one click (the site then opens by itself), and **fully offline
+recovery/removal** even if the parent password is forgotten.
+
+- **Requirements:** Windows 7 SP1 → 11, 4 GB RAM, Python 3.11 (installed by the setup).
+- **Install (one line, CMD):**
+  ```cmd
+  curl -sSL https://raw.githubusercontent.com/omaryounesEG/Haseen_Kids/main/install_from_github.bat -o install_from_github.bat && install_from_github.bat
+  ```
+  or download the ZIP from [Releases](https://github.com/omaryounesEG/Haseen_Kids/releases/latest)
+  and double-click `Setup.bat`.
+- **Updates never wipe** the parent password or the lists: `database/haseen.db` is excluded
+  from Git and from every update copy.
+- **Forgotten password / removal (offline):** `Haseen_Remove.bat` → recovery key, or the
+  Windows Administrator account, or the password.
+- **Quality:** 41/41 automated tests passing; see `tests/BUG_REPORT.md` and `tests/UX_UI_REPORT.md`.
+- **License:** MIT — **Built by:** SAIP Consulting.
+
+اقرأ الشرح الكامل بالعربية أسفل الصفحة 👇
 
 ---
 
