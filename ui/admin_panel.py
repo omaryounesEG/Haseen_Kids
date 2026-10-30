@@ -17,23 +17,12 @@ from core.reports import WeeklyReportGenerator
 from core.approvals import ApprovalManager
 from proxy.filter_engine import SmartFilterEngine
 
-STYLE_ADMIN = """
-QDialog { background-color: #0f172a; color: #f8fafc; }
-QWidget { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; font-size: 13px; color: #f8fafc; }
-QGroupBox { border: 1px solid #334155; border-radius: 8px; margin-top: 15px; padding-top: 15px; font-weight: bold; color: #38bdf8; }
-QTabWidget::pane { border: 1px solid #334155; background: #1e293b; }
-QTabBar::tab { background: #0f172a; color: #94a3b8; padding: 8px 16px; border-top-left-radius: 6px; border-top-right-radius: 6px; font-weight: bold; }
-QTabBar::tab:selected { background: #1e293b; color: #38bdf8; border-bottom: 2px solid #38bdf8; }
-QPushButton { background-color: #2563eb; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-weight: bold; }
-QPushButton:hover { background-color: #1d4ed8; }
-QPushButton#saveBtn { background-color: #10b981; }
-QPushButton#saveBtn:hover { background-color: #059669; }
-QPushButton#dangerBtn { background-color: #e11d48; }
-QPushButton#dangerBtn:hover { background-color: #be123c; }
-QLineEdit, QComboBox, QTimeEdit, QSpinBox { background-color: #0f172a; border: 1px solid #475569; border-radius: 4px; padding: 6px; color: white; }
-QTableWidget { background-color: #0f172a; border: 1px solid #334155; gridline-color: #1e293b; color: white; }
-QHeaderView::section { background-color: #1e293b; color: #38bdf8; padding: 4px; border: 1px solid #334155; font-weight: bold; }
-"""
+# Shared kid-friendly theme
+try:
+    from ui.theme import STYLESHEET as STYLE_ADMIN, tip as add_tip
+except Exception:
+    from theme import STYLESHEET as STYLE_ADMIN, tip as add_tip
+
 
 class ParentAdminDialog(QDialog):
     def __init__(self, parent=None):
@@ -55,7 +44,7 @@ class ParentAdminDialog(QDialog):
         layout = QVBoxLayout(self)
 
         header = QLabel("⚙️ لوحة الإدارة الأبوية الشاملة - حصين | Haseen Kids")
-        header.setStyleSheet("font-size: 18px; font-weight: bold; color: #38bdf8; margin-bottom: 5px;")
+        header.setStyleSheet("font-size: 18px; font-weight: bold; color: #7C5CFF; margin-bottom: 5px;")
         layout.addWidget(header)
 
         self.tabs = QTabWidget()
@@ -72,7 +61,7 @@ class ParentAdminDialog(QDialog):
         v = QVBoxLayout(tab)
 
         lbl = QLabel("تحديد الحصص اليومية (بالدقائق) لكل يوم من أيام الأسبوع:")
-        lbl.setStyleSheet("font-weight: bold; color: #94a3b8;")
+        lbl.setStyleSheet("font-weight: bold; color: #6B6390;")
         v.addWidget(lbl)
 
         self.spin_boxes = {}
@@ -173,18 +162,40 @@ class ParentAdminDialog(QDialog):
         tab = QWidget()
         v = QVBoxLayout(tab)
 
+        # Explainer: one whitelist for every browser
+        lbl_note = QLabel(
+            "💡 <b>قاعدة واحدة تكفي:</b> عند إضافة موقع للقائمة المسموحة يعمل تلقائياً في "
+            "<b>كل المتصفحات</b> (Chrome, Edge, Brave, Firefox) ومع كل صفحاته الفرعية "
+            "(مثل <code>app.classera.com</code>) وملفاته وصوره وفيديوهاته.<br>"
+            "🎬 أي فيديو يوتيوب داخل صفحة مسموحة يعمل مباشرة في المشغل النظيف — "
+            "<b>بدون حجب وبدون انتظار موافقة</b>."
+        )
+        lbl_note.setWordWrap(True)
+        lbl_note.setTextFormat(Qt.TextFormat.RichText)
+        lbl_note.setStyleSheet(
+            "background:#F4F1FF; border:2px solid #E6E0FF; border-radius:14px;"
+            "padding:12px; color:#2B2350; font-size:13px; line-height:1.7;"
+        )
+        v.addWidget(lbl_note)
+
         # Quick Add
         grp_add = QGroupBox("إضافة قاعدة موقع مخصصة:")
         f_add = QHBoxLayout(grp_add)
 
         self.in_domain = QLineEdit()
-        self.in_domain.setPlaceholderText("اسم النطاق (مثال: roblox.com)")
+        self.in_domain.setPlaceholderText("اسم النطاق (مثال: classera.com)")
+        add_tip(self.in_domain, "اكتب اسم الموقع فقط بدون https أو www.<br>"
+                                "مثال: <b>classera.com</b> يفتح كل صفحات Classera وكل متصفح.")
         self.cmb_cat = QComboBox()
         self.cmb_cat.addItems(["SAFE", "EDU", "SCHOOL", "GAMING", "ADULT", "VIOLENCE"])
         self.cmb_act = QComboBox()
         self.cmb_act.addItems(["ALLOW", "BLOCK"])
+        add_tip(self.cmb_cat, "نوع الموقع: <b>EDU/SCHOOL</b> = تعليمي (مفتوح دائماً بلا حدود وقت)، "
+                              "<b>SAFE</b> = عادي، <b>GAMING</b> = يُحسب من وقت الترفيه.")
+        add_tip(self.cmb_act, "<b>ALLOW</b> = السماح بالفتح، <b>BLOCK</b> = الحجب.")
         btn_add = QPushButton("إضافة القاعدة ➕")
         btn_add.setObjectName("saveBtn")
+        add_tip(btn_add, "يضيف الموقع للقائمة ويطبق فوراً على جميع المتصفحات.")
         btn_add.clicked.connect(self.add_domain_rule)
 
         f_add.addWidget(self.in_domain)
@@ -297,7 +308,7 @@ class ParentAdminDialog(QDialog):
         # Provider Key links
         h_links = QHBoxLayout()
         btn_gemini_link = QPushButton("🔗 مفتاح Gemini مجاني")
-        btn_gemini_link.setStyleSheet("font-size: 11px; padding: 4px 8px; background: #0284c7;")
+        btn_gemini_link.setStyleSheet("font-size: 11px; padding: 4px 8px; background: #7C5CFF;")
         btn_gemini_link.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://aistudio.google.com/app/apikey")))
 
         btn_groq_link = QPushButton("🔗 مفتاح Groq مجاني")
@@ -309,7 +320,7 @@ class ParentAdminDialog(QDialog):
         btn_or_link.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://openrouter.ai/keys")))
 
         btn_ds_link = QPushButton("🔗 مفتاح DeepSeek")
-        btn_ds_link.setStyleSheet("font-size: 11px; padding: 4px 8px; background: #334155;")
+        btn_ds_link.setStyleSheet("font-size: 11px; padding: 4px 8px; background: #E6E0FF;")
         btn_ds_link.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://platform.deepseek.com/api_keys")))
 
         h_links.addWidget(btn_gemini_link)
@@ -337,7 +348,7 @@ class ParentAdminDialog(QDialog):
         btn_test_ai = QPushButton("🧪 اختبار اتصال ونشاط الـ API")
         btn_test_ai.clicked.connect(self.test_ai_connection)
         self.lbl_ai_led = QLabel("⚪ لم يتم اختبار اتصال الـ AI بعد")
-        self.lbl_ai_led.setStyleSheet("color: #94a3b8; font-size: 12px; font-weight: bold;")
+        self.lbl_ai_led.setStyleSheet("color: #6B6390; font-size: 12px; font-weight: bold;")
         h_ai_test.addWidget(btn_test_ai)
         h_ai_test.addWidget(self.lbl_ai_led)
         h_ai_test.addStretch()
@@ -356,12 +367,12 @@ class ParentAdminDialog(QDialog):
         self.in_smtp_server = QLineEdit(settings.get("smtp_server", "smtp.gmail.com"))
 
         btn_app_pwd_link = QPushButton("🔗 استخراج كلمة مرور التطبيق من Google مباشرة (Google App Passwords)")
-        btn_app_pwd_link.setStyleSheet("background-color: #0284c7; color: white; padding: 6px 12px; font-weight: bold;")
+        btn_app_pwd_link.setStyleSheet("background-color: #7C5CFF; color: white; padding: 6px 12px; font-weight: bold;")
         btn_app_pwd_link.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://myaccount.google.com/apppasswords")))
         f_mail.addRow("خطوة سريعة:", btn_app_pwd_link)
 
         lbl_hint_pwd = QLabel("ملاحظة: اختر اسم 'Haseen Kids' وأنشئ كلمة مرور التطبيق وانسخ الـ 16 حرفاً هنا.")
-        lbl_hint_pwd.setStyleSheet("color: #94a3b8; font-size: 11px;")
+        lbl_hint_pwd.setStyleSheet("color: #6B6390; font-size: 11px;")
         f_mail.addRow("", lbl_hint_pwd)
 
         f_mail.addRow("بريد ولي الأمر المستلم:", self.in_parent_email)
@@ -374,7 +385,7 @@ class ParentAdminDialog(QDialog):
         btn_test_smtp = QPushButton("🧪 فحص اتصال بريد Gmail")
         btn_test_smtp.clicked.connect(self.test_smtp_mail)
         self.lbl_mail_led = QLabel("⚪ لم يتم فحص الاتصال بعد")
-        self.lbl_mail_led.setStyleSheet("color: #94a3b8; font-size: 12px; font-weight: bold;")
+        self.lbl_mail_led.setStyleSheet("color: #6B6390; font-size: 12px; font-weight: bold;")
         h_mail_test.addWidget(btn_test_smtp)
         h_mail_test.addWidget(self.lbl_mail_led)
         h_mail_test.addStretch()
@@ -412,11 +423,11 @@ class ParentAdminDialog(QDialog):
         api_key = key_map.get(prov, "")
         if not api_key:
             self.lbl_ai_led.setText("🔴 يرجى إدخال مفتاح الـ API أولاً")
-            self.lbl_ai_led.setStyleSheet("color: #ef4444; font-size: 12px; font-weight: bold;")
+            self.lbl_ai_led.setStyleSheet("color: #FF5C7A; font-size: 12px; font-weight: bold;")
             return
 
         self.lbl_ai_led.setText("⏳ جاري اختبار الاتصال...")
-        self.lbl_ai_led.setStyleSheet("color: #38bdf8; font-size: 12px; font-weight: bold;")
+        self.lbl_ai_led.setStyleSheet("color: #7C5CFF; font-size: 12px; font-weight: bold;")
         from PyQt6.QtWidgets import QApplication
         QApplication.processEvents()
 
@@ -427,7 +438,7 @@ class ParentAdminDialog(QDialog):
             QMessageBox.information(self, "نجاح فحص الـ API", msg)
         else:
             self.lbl_ai_led.setText(f"🔴 {msg[:60]}")
-            self.lbl_ai_led.setStyleSheet("color: #ef4444; font-size: 12px; font-weight: bold;")
+            self.lbl_ai_led.setStyleSheet("color: #FF5C7A; font-size: 12px; font-weight: bold;")
             QMessageBox.critical(self, "فشل فحص الـ API", msg)
 
     def test_smtp_mail(self):
@@ -437,11 +448,11 @@ class ParentAdminDialog(QDialog):
 
         if not user or not pwd:
             self.lbl_mail_led.setText("🔴 أدخل بريد الإرسال وكلمة مرور التطبيق أولاً")
-            self.lbl_mail_led.setStyleSheet("color: #ef4444; font-size: 12px; font-weight: bold;")
+            self.lbl_mail_led.setStyleSheet("color: #FF5C7A; font-size: 12px; font-weight: bold;")
             return
 
         self.lbl_mail_led.setText("⏳ جاري فحص الاتصال بسيرفر Google...")
-        self.lbl_mail_led.setStyleSheet("color: #38bdf8; font-size: 12px; font-weight: bold;")
+        self.lbl_mail_led.setStyleSheet("color: #7C5CFF; font-size: 12px; font-weight: bold;")
         from PyQt6.QtWidgets import QApplication
         QApplication.processEvents()
 
@@ -452,7 +463,7 @@ class ParentAdminDialog(QDialog):
             QMessageBox.information(self, "نجاح الاتصال بالبريد", msg)
         else:
             self.lbl_mail_led.setText("🔴 فشل الاتصال - راجع كلمة المرور")
-            self.lbl_mail_led.setStyleSheet("color: #ef4444; font-size: 12px; font-weight: bold;")
+            self.lbl_mail_led.setStyleSheet("color: #FF5C7A; font-size: 12px; font-weight: bold;")
             QMessageBox.critical(self, "فشل الاتصال بالبريد", msg)
 
     def save_security_settings(self):
@@ -487,24 +498,24 @@ class ParentAdminDialog(QDialog):
 
         # Version status card
         v_card = QHBoxLayout()
-        self.lbl_cur_ver = QLabel(f"📌 الإصدار الحالي المثبت: <b style='color:#10b981;'>v{self.updater.current_version}</b>")
-        self.lbl_rem_ver = QLabel("🌐 حالة مستودع GitHub: <span style='color:#38bdf8;'>جاهز للفحص</span>")
+        self.lbl_cur_ver = QLabel(f"📌 الإصدار الحالي المثبت: <b style='color:#22C1A8;'>v{self.updater.current_version}</b>")
+        self.lbl_rem_ver = QLabel("🌐 حالة مستودع GitHub: <span style='color:#7C5CFF;'>جاهز للفحص</span>")
         v_card.addWidget(self.lbl_cur_ver)
         v_card.addWidget(self.lbl_rem_ver)
         v_up.addLayout(v_card)
 
         lbl_desc = QLabel("يمكنك فحص وتنزيل أحدث التحديثات والتحسينات مباشرة من GitHub دون مساس بقاعدة البيانات أو كلمات المرور:")
-        lbl_desc.setStyleSheet("color: #94a3b8; line-height: 1.5;")
+        lbl_desc.setStyleSheet("color: #6B6390; line-height: 1.5;")
         v_up.addWidget(lbl_desc)
 
         # Big One-Click Update Button
         self.btn_direct_update = QPushButton("🚀 تحديث البرنامج فورا لآخر إصدار من GitHub (بضغطة واحدة)")
-        self.btn_direct_update.setStyleSheet("background-color: #10b981; color: white; padding: 12px 20px; font-size: 14px; font-weight: bold; border-radius: 8px;")
+        self.btn_direct_update.setStyleSheet("background-color: #22C1A8; color: white; padding: 12px 20px; font-size: 14px; font-weight: bold; border-radius: 8px;")
         self.btn_direct_update.clicked.connect(self.run_direct_update)
         v_up.addWidget(self.btn_direct_update)
 
         self.lbl_update_progress = QLabel("")
-        self.lbl_update_progress.setStyleSheet("color: #38bdf8; font-weight: bold; font-size: 12px;")
+        self.lbl_update_progress.setStyleSheet("color: #7C5CFF; font-weight: bold; font-size: 12px;")
         v_up.addWidget(self.lbl_update_progress)
 
         h_checks = QHBoxLayout()
@@ -522,6 +533,34 @@ class ParentAdminDialog(QDialog):
 
         v.addWidget(grp_up)
 
+        # --- Offline recovery & removal -------------------------------------
+        grp_rec = QGroupBox("الاسترجاع والحذف النهائي (يعمل بدون إنترنت):")
+        v_rec = QVBoxLayout(grp_rec)
+        lbl_rec = QLabel(
+            "لو نسيت كلمة المرور أو أردت إزالة البرنامج بالكامل دون إنترنت، استخدم إحدى "
+            "الطرق الثلاث: <b>مفتاح الاسترجاع</b>، أو <b>صلاحيات Administrator</b> في ويندوز، "
+            "أو <b>كلمة المرور</b>. افتح ملف <code>Haseen_Remove.bat</code> من مجلد البرنامج."
+        )
+        lbl_rec.setWordWrap(True)
+        lbl_rec.setTextFormat(Qt.TextFormat.RichText)
+        lbl_rec.setStyleSheet("color:#6B6390; font-size:13px; line-height:1.7;")
+        v_rec.addWidget(lbl_rec)
+
+        h_rec = QHBoxLayout()
+        self.btn_show_key = QPushButton("🔑 عرض / توليد مفتاح استرجاع جديد")
+        self.btn_show_key.clicked.connect(self.show_recovery_key)
+        add_tip(self.btn_show_key, "يعرض مفتاح الاسترجاع الحالي إن وُجد، أو يولّد مفتاحاً جديداً.<br>"
+                                   "احفظه في مكان آمن — بدونه ستحتاج صلاحيات المسؤول لإزالة البرنامج.")
+        h_rec.addWidget(self.btn_show_key)
+
+        self.btn_remove_app = QPushButton("🗑️ إزالة البرنامج نهائياً")
+        self.btn_remove_app.setObjectName("dangerBtn")
+        self.btn_remove_app.clicked.connect(self.remove_program)
+        add_tip(self.btn_remove_app, "يوقف الحماية ويزيل قواعد المتصفحات وجدار الحماية والاختصارات.")
+        h_rec.addWidget(self.btn_remove_app)
+        v_rec.addLayout(h_rec)
+        v.addWidget(grp_rec)
+
         # Change Admin Password
         grp_pwd = QGroupBox("تغيير كلمة مرور ولي الأمر:")
         f_pwd = QFormLayout(grp_pwd)
@@ -535,7 +574,7 @@ class ParentAdminDialog(QDialog):
         self.in_confirm_pwd.setPlaceholderText("أعد إدخال كلمة المرور للتأكيد")
         
         self.chk_show_pwd = QCheckBox("👁️ إظهار كلمة المرور للتأكد قبل الحفظ")
-        self.chk_show_pwd.setStyleSheet("color: #38bdf8; font-weight: bold;")
+        self.chk_show_pwd.setStyleSheet("color: #7C5CFF; font-weight: bold;")
         self.chk_show_pwd.toggled.connect(self.toggle_show_passwords)
         
         btn_ch_pwd = QPushButton("حفظ كلمة المرور الجديدة 🔑")
@@ -550,6 +589,114 @@ class ParentAdminDialog(QDialog):
 
         v.addStretch()
         self.tabs.addTab(tab, "🔄 التحديثات والصيانة")
+
+        self.create_requests_tab()
+
+    # --- Child requests (approve/deny in one click) -----------------------
+    def create_requests_tab(self):
+        tab = QWidget()
+        v = QVBoxLayout(tab)
+        v.setSpacing(12)
+        v.setContentsMargins(14, 14, 14, 14)
+
+        info = QLabel(
+            "هنا تصل طلبات طفلك لفتح مواقع. اضغط «موافقة» فيُفتح الموقع له "
+            "تلقائياً في نفس اللحظة — بلا إعادة تحميل ولا انتظار."
+        )
+        info.setWordWrap(True)
+        info.setStyleSheet("background:#F4F1FF; border:1px solid #E6E0FF;"
+                           "border-radius:14px; padding:12px; color:#2B2350; font-size:14px;")
+        v.addWidget(info)
+
+        self.tbl_req = QTableWidget(0, 3)
+        self.tbl_req.setHorizontalHeaderLabels(["الموقع المطلوب", "سبب الطفل", "الوقت"])
+        self.tbl_req.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.tbl_req.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.tbl_req.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        self.tbl_req.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.tbl_req.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.tbl_req.verticalHeader().setDefaultSectionSize(38)
+        v.addWidget(self.tbl_req, 1)
+
+        row = QHBoxLayout()
+        btn_perm = QPushButton("✅ موافقة دائمة")
+        btn_perm.setObjectName("btnSuccess")
+        add_tip(btn_perm, "يفتح الموقع لطفلك دائماً ويدخله القائمة البيضاء (كل المتصفحات وكل الصفحات الفرعية).")
+        btn_perm.clicked.connect(lambda: self._decide_request(permanent=True))
+
+        btn_temp = QPushButton("⏳ موافقة 30 دقيقة")
+        add_tip(btn_temp, "يفتح الموقع لمدة نصف ساعة فقط ثم يعود محجوباً تلقائياً.")
+        btn_temp.clicked.connect(lambda: self._decide_request(permanent=False))
+
+        btn_rej = QPushButton("🚫 رفض")
+        btn_rej.setObjectName("btnDanger")
+        add_tip(btn_rej, "يرفض الطلب ويُبقي الموقع مغلقاً.")
+        btn_rej.clicked.connect(self._reject_request)
+
+        btn_ref = QPushButton("🔄 تحديث")
+        add_tip(btn_ref, "يعيد قراءة الطلبات الجديدة من الطفل.")
+        btn_ref.clicked.connect(self.load_requests)
+
+        row.addWidget(btn_perm)
+        row.addWidget(btn_temp)
+        row.addWidget(btn_rej)
+        row.addWidget(btn_ref)
+        v.addLayout(row)
+
+        self.tabs.addTab(tab, "📨 طلبات الطفل")
+        self.load_requests()
+
+    def load_requests(self):
+        self.tbl_req.setRowCount(0)
+        try:
+            rows = self.db.list_exception_requests("PENDING")
+        except Exception:
+            rows = []
+        for _id, domain, url, reason, status, created in rows:
+            r = self.tbl_req.rowCount()
+            self.tbl_req.insertRow(r)
+            self.tbl_req.setItem(r, 0, QTableWidgetItem(domain or "(بدون نطاق)"))
+            self.tbl_req.setItem(r, 1, QTableWidgetItem(reason or "-"))
+            self.tbl_req.setItem(r, 2, QTableWidgetItem(str(created or "")))
+        if not rows:
+            self.tbl_req.insertRow(0)
+            it = QTableWidgetItem("لا توجد طلبات جديدة الآن — كل شيء على ما يرام ✅")
+            it.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.tbl_req.setItem(0, 0, it)
+            self.tbl_req.setSpan(0, 0, 1, 3)
+
+    def _selected_request_domain(self):
+        r = self.tbl_req.currentRow()
+        if r < 0:
+            QMessageBox.information(self, "تنبيه", "اختر الطلب من الجدول أولاً.")
+            return None
+        item = self.tbl_req.item(r, 0)
+        if not item or item.text() in ("(بدون نطاق)", ""):
+            QMessageBox.warning(self, "تنبيه", "هذا الطلب لم يسجّل اسم الموقع. اطلب من طفلك إعادة الطلب من صفحة الحجب.")
+            return None
+        return item.text().strip()
+
+    def _decide_request(self, permanent=True):
+        domain = self._selected_request_domain()
+        if not domain:
+            return
+        self.db.grant_exception(domain, minutes=None if permanent else 30)
+        self.load_requests()
+        QMessageBox.information(
+            self, "تم",
+            f"تم السماح بموقع {domain} "
+            + ("دائماً ✅" if permanent else "لمدة 30 دقيقة ⏳")
+            + chr(10) + "سيفتح عند طفلك تلقائياً خلال ثوانٍ بدون أي إجراء منه."
+        )
+
+    def _reject_request(self):
+        domain = self._selected_request_domain()
+        if not domain:
+            return
+        self.db.reject_exception(domain)
+        self.load_requests()
+        QMessageBox.information(self, "تم", f"تم رفض طلب {domain}.")
+
 
     def run_direct_update(self):
         reply = QMessageBox.question(
@@ -583,10 +730,10 @@ class ParentAdminDialog(QDialog):
         has_up, rem_v, info, err = self.updater.check_for_updates()
         cur_v = self.updater.current_version
         if err:
-            self.lbl_rem_ver.setText("<span style='color:#ef4444;'>فشل الاتصال</span>")
+            self.lbl_rem_ver.setText("<span style='color:#FF5C7A;'>فشل الاتصال</span>")
             QMessageBox.warning(self, "فحص التحديثات", f"تعذر التحقق من التحديثات:\n{err}")
         elif has_up:
-            self.lbl_rem_ver.setText(f"🌐 يتوفر إصدار جديد: <b style='color:#38bdf8;'>v{rem_v}</b>")
+            self.lbl_rem_ver.setText(f"🌐 يتوفر إصدار جديد: <b style='color:#7C5CFF;'>v{rem_v}</b>")
             reply = QMessageBox.question(
                 self,
                 "تحديث جديد متوفر!",
@@ -599,7 +746,7 @@ class ParentAdminDialog(QDialog):
             if reply == QMessageBox.StandardButton.Yes:
                 self.run_direct_update()
         else:
-            self.lbl_rem_ver.setText(f"🌐 مستودع GitHub: <b style='color:#10b981;'>v{rem_v} (محدث بالكامل)</b>")
+            self.lbl_rem_ver.setText(f"🌐 مستودع GitHub: <b style='color:#22C1A8;'>v{rem_v} (محدث بالكامل)</b>")
             QMessageBox.information(
                 self,
                 "البرنامج محدث",
@@ -619,6 +766,56 @@ class ParentAdminDialog(QDialog):
             QMessageBox.information(self, "قوائم الحجب", msg)
         else:
             QMessageBox.warning(self, "تنبيه", msg)
+
+
+    # --- Recovery key & removal -------------------------------------------
+    def show_recovery_key(self):
+        import core.recovery as recovery_mod
+        NL = chr(10)
+        existing = self.db.get_setting("recovery_key_hash", "")
+        key = recovery_mod.generate_recovery_key()
+        if existing:
+            txt = ("يوجد مفتاح محفوظ " + NL + NL
+                   + "مفتاح جديد: " + key + NL + NL
+                   + "هل تريد استبداله؟")
+            if QMessageBox.question(self, "مفتاح الاسترجاع", txt) != QMessageBox.StandardButton.Yes:
+                return
+        recovery_mod.store_recovery_key(self.db, key)
+        try:
+            path = recovery_mod.write_recovery_note(key)
+            extra = NL + NL + "حفظت نسخة في: " + str(path)
+        except Exception:
+            extra = ""
+        QMessageBox.information(
+            self, "مفتاح الاسترجاع",
+            "مفتاح الاسترجاع الخاص بك: " + NL + NL + "   " + key + extra
+        )
+
+    def remove_program(self):
+        NL = chr(10)
+        ans = QMessageBox.warning(
+            self, "تأكيد الإزالة",
+            "سيتم إيقاف الحماية وإزالة قواعد المتصفحات وجدار الحماية والاختصارات." + NL + NL + "هل أنت متأكد؟",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        if ans != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            import core.recovery as recovery_mod
+            summary = recovery_mod.full_remove(delete_folder=False)
+            QMessageBox.information(
+                self, "تمت الإزالة",
+                "تم إيقاف الحماية واستعادة إعدادات الجهاز." + NL
+                + "processes stopped: " + str(summary.get("processes", 0)) + NL
+                + "browser policies removed: " + str(summary.get("policies", 0)) + NL
+                + "firewall rules removed: " + str(summary.get("firewall", 0)) + NL
+                + "autostart entries removed: " + str(summary.get("autostart", 0)) + NL + NL
+                + "يمكنك الآن حذف مجلد البرنامج يدوياً."
+            )
+            self.accept()
+        except Exception as e:
+            QMessageBox.critical(self, "خطأ", str(e))
 
     def toggle_show_passwords(self, checked):
         mode = QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password

@@ -2,11 +2,26 @@ venv/
 __pycache__/
 *.pyc
 *.heartbeat
+*.pid
 temp_update/
 Backup_OldVersion/
 .pytest_cache/
+
+# The live database and any recovery state belong to the machine, never to Git.
+# Committing them is what wiped the parent password on update before.
 database/*.db
 database/*.db-shm
 database/*.db-wal
+
+# Local secrets / run artefacts
+recovery.sig
+recovery_key.txt
+Haseen_Recovery_Key.txt
+run_log.txt
+*.log
+
+# Test artefacts
+tests/_shots/
+tests/_shots
 *.zip
 temp_shortcut.vbs

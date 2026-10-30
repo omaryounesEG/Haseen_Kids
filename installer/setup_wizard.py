@@ -18,78 +18,9 @@ from PyQt6.QtGui import QFont, QIcon, QPixmap
 
 from installer.preflight import SystemPreflightChecker
 from core.security import SecurityManager
+from ui.theme import build_stylesheet
 
-STYLE_WIZARD = """
-QWizard, QWizardPage, QDialog {
-    background-color: #0f172a;
-    color: #f8fafc;
-}
-QWidget {
-    font-family: 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, Arial, sans-serif;
-    font-size: 13px;
-    color: #f8fafc;
-    background-color: transparent;
-}
-QWizard QWidget#qt_wizard_page {
-    background-color: #0f172a;
-}
-QLabel {
-    color: #f8fafc;
-}
-QGroupBox {
-    background-color: #1e293b;
-    border: 1px solid #334155;
-    border-radius: 8px;
-    margin-top: 15px;
-    padding-top: 20px;
-    padding-left: 10px;
-    padding-right: 10px;
-    padding-bottom: 10px;
-    font-weight: bold;
-    color: #38bdf8;
-}
-QGroupBox::title {
-    subcontrol-origin: margin;
-    subcontrol-position: top right;
-    padding: 2px 8px;
-    color: #38bdf8;
-}
-QCheckBox {
-    color: #f8fafc;
-    spacing: 8px;
-}
-QPushButton {
-    background-color: #2563eb;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    padding: 8px 18px;
-    font-weight: bold;
-    font-size: 13px;
-}
-QPushButton:hover {
-    background-color: #1d4ed8;
-}
-QLineEdit {
-    background-color: #0f172a;
-    border: 1px solid #475569;
-    border-radius: 4px;
-    padding: 6px;
-    color: white;
-}
-QProgressBar {
-    border: 1px solid #334155;
-    border-radius: 6px;
-    text-align: center;
-    background: #0f172a;
-    color: white;
-    font-weight: bold;
-}
-QProgressBar::chunk {
-    background-color: #10b981;
-    border-radius: 5px;
-}
-"""
+STYLE_WIZARD = build_stylesheet()
 
 # Worker for downloading Brave in background without freezing UI
 class BraveDownloaderThread(QThread):
@@ -116,7 +47,7 @@ class WelcomePage(QWizardPage):
             lbl_ico.setPixmap(pix)
             top_h.addWidget(lbl_ico)
 
-        lbl_head = QLabel("<h2>حَصِين للأطفال | Haseen Kids</h2><span style='color: #38bdf8;'>نظام الحماية والرقابة الأسرية الذكي</span>")
+        lbl_head = QLabel("<h2>حَصِين للأطفال | Haseen Kids</h2><span style='color: #7C5CFF;'>نظام الحماية والرقابة الأسرية الذكي</span>")
         lbl_head.setTextFormat(Qt.TextFormat.RichText)
         top_h.addWidget(lbl_head)
         top_h.addStretch()
@@ -132,7 +63,7 @@ class WelcomePage(QWizardPage):
             "انقر فوق <strong>التالي (Next)</strong> لفحص متطلبات النظام والجهوزية."
         )
         lbl.setTextFormat(Qt.TextFormat.RichText)
-        lbl.setStyleSheet("line-height: 1.6; font-size: 14px; color: #cbd5e1;")
+        lbl.setStyleSheet("line-height: 1.6; font-size: 14px; color: #2B2350;")
         layout.addWidget(lbl)
 
 # Page 2: Diagnostics & Pre-flight
@@ -159,7 +90,7 @@ class DiagnosticsPage(QWizardPage):
         self.chk_install_brave = QCheckBox("تحميل وتثبيت متصفح Brave الرسمي المعتمد تلقائياً")
         self.chk_install_brave.setChecked(True)
         self.lbl_brave_status = QLabel("يوفر Brave أفضل حماية تلقائية مدمجة ضد الإعلانات والمتعقبات.")
-        self.lbl_brave_status.setStyleSheet("color: #94a3b8; font-size: 12px;")
+        self.lbl_brave_status.setStyleSheet("color: #6B6390; font-size: 12px;")
         v_brave.addWidget(self.chk_install_brave)
         v_brave.addWidget(self.lbl_brave_status)
         layout.addWidget(self.grp_brave)
@@ -169,9 +100,9 @@ class DiagnosticsPage(QWizardPage):
         res = self.checker.check_system_resources()
         win_label = "Windows 7 (متوافق مع مكتبات التوافق)" if res["is_win7"] else res["os"]
         self.lbl_res.setText(
-            f"<b style='color:#f8fafc;'>• نظام التشغيل:</b> <span style='color:#38bdf8;'>{win_label}</span><br>"
-            f"<b style='color:#f8fafc;'>• الذاكرة العشوائية:</b> <span style='color:#10b981;'>{res['total_ram_gb']} GB</span> (المتاح: {res['avail_ram_gb']} GB) ✅<br>"
-            f"<b style='color:#f8fafc;'>• أنوية المعالج:</b> <span style='color:#10b981;'>{res['cpu_cores']} Cores</span> ✅"
+            f"<b style='color:#2B2350;'>• نظام التشغيل:</b> <span style='color:#7C5CFF;'>{win_label}</span><br>"
+            f"<b style='color:#2B2350;'>• الذاكرة العشوائية:</b> <span style='color:#22C1A8;'>{res['total_ram_gb']} GB</span> (المتاح: {res['avail_ram_gb']} GB) ✅<br>"
+            f"<b style='color:#2B2350;'>• أنوية المعالج:</b> <span style='color:#22C1A8;'>{res['cpu_cores']} Cores</span> ✅"
         )
         self.lbl_res.setTextFormat(Qt.TextFormat.RichText)
 
@@ -184,8 +115,8 @@ class DiagnosticsPage(QWizardPage):
         browsers = self.checker.detect_browsers()
         for b_id, b_info in browsers.items():
             status = "مثبت ومكتشف ✅" if b_info["installed"] else "غير مثبت ❌"
-            color = "#10b981" if b_info["installed"] else "#ef4444"
-            l = QLabel(f"<b style='color:#f8fafc;'>• {b_info['name']}:</b> <span style='color:{color}; font-weight:bold;'>{status}</span>")
+            color = "#22C1A8" if b_info["installed"] else "#ef4444"
+            l = QLabel(f"<b style='color:#2B2350;'>• {b_info['name']}:</b> <span style='color:{color}; font-weight:bold;'>{status}</span>")
             l.setTextFormat(Qt.TextFormat.RichText)
             self.v_browsers.addWidget(l)
 
@@ -228,13 +159,13 @@ class ConfigPage(QWizardPage):
         if self.has_existing_pwd:
             self.chk_keep_pwd = QCheckBox("الإبقاء على كلمة المرور الحالية المحفوظة دون تغيير (موصى به) 🔒")
             self.chk_keep_pwd.setChecked(True)
-            self.chk_keep_pwd.setStyleSheet("color: #10b981; font-weight: bold;")
+            self.chk_keep_pwd.setStyleSheet("color: #22C1A8; font-weight: bold;")
             v_pass.addWidget(self.chk_keep_pwd)
         else:
             self.chk_keep_pwd = None
             
         lbl_p = QLabel("كلمة المرور هذه تحمي لوحة التحكم وتمنع الطفل من إغلاق أو حذف البرنامج:")
-        lbl_p.setStyleSheet("color: #94a3b8; font-size: 12px;")
+        lbl_p.setStyleSheet("color: #6B6390; font-size: 12px;")
         v_pass.addWidget(lbl_p)
 
         self.in_pwd = QLineEdit()
@@ -250,7 +181,7 @@ class ConfigPage(QWizardPage):
             self.in_pwd_confirm.setText("haseen2026")
             
         self.chk_show_wiz_pwd = QCheckBox("👁️ إظهار كلمة المرور للتأكد")
-        self.chk_show_wiz_pwd.setStyleSheet("color: #38bdf8;")
+        self.chk_show_wiz_pwd.setStyleSheet("color: #7C5CFF;")
         self.chk_show_wiz_pwd.toggled.connect(self._toggle_wiz_pwd)
 
         v_pass.addWidget(self.in_pwd)
@@ -266,6 +197,55 @@ class ConfigPage(QWizardPage):
             on_keep_toggled(True)
             
         layout.addWidget(grp_pass)
+
+        # --- Offline recovery key -------------------------------------------
+        import core.recovery as recovery_mod
+        self._recovery_mod = recovery_mod
+
+        grp_rec = QGroupBox("مفتاح الاسترجاع (لحالات نسيان كلمة المرور — يعمل بدون إنترنت):")
+        v_rec = QVBoxLayout(grp_rec)
+        lbl_rec = QLabel(
+            "احفظ هذا المفتاح في مكان آمن. يسمح لك بإزالة البرنامج أو تغيير كلمة المرور "
+            "حتى لو نسيت كلمة السر ولا يوجد إنترنت."
+        )
+        lbl_rec.setWordWrap(True)
+        lbl_rec.setStyleSheet("color: #6B6390; font-size: 12px;")
+        v_rec.addWidget(lbl_rec)
+
+        h_rec = QHBoxLayout()
+        self.in_recovery_key = QLineEdit(recovery_mod.generate_recovery_key())
+        self.in_recovery_key.setReadOnly(True)
+        self.in_recovery_key.setStyleSheet(
+            "font-size: 18px; font-weight: 800; letter-spacing: 2px; color: #7C5CFF;"
+            "background:#F4F1FF; border:2px dashed #7C5CFF; border-radius:12px; padding:10px;"
+        )
+        h_rec.addWidget(self.in_recovery_key, 1)
+
+        btn_copy = QPushButton("نسخ 📋")
+        btn_copy.setObjectName("ghostBtn")
+        btn_copy.clicked.connect(self._copy_key)
+        h_rec.addWidget(btn_copy)
+
+        btn_save = QPushButton("حفظ في المستندات 💾")
+        btn_save.clicked.connect(self._save_key)
+        h_rec.addWidget(btn_save)
+        v_rec.addLayout(h_rec)
+
+        self.chk_save_key = QCheckBox("أنشئ نسخة نصية من المفتاح في مجلد المستندات عند التثبيت")
+        self.chk_save_key.setChecked(True)
+        v_rec.addWidget(self.chk_save_key)
+        layout.addWidget(grp_rec)
+
+    def _copy_key(self):
+        QApplication.clipboard().setText(self.in_recovery_key.text())
+        QMessageBox.information(self, "تم النسخ", "تم نسخ مفتاح الاسترجاع إلى الحافظة ✅")
+
+    def _save_key(self):
+        try:
+            path = self._recovery_mod.write_recovery_note(self.in_recovery_key.text())
+            QMessageBox.information(self, "تم الحفظ", f"تم حفظ المفتاح في:\n{path}")
+        except Exception as e:
+            QMessageBox.warning(self, "تعذر الحفظ", str(e))
 
     def _toggle_wiz_pwd(self, checked):
         mode = QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password
@@ -303,6 +283,17 @@ class InstallPage(QWizardPage):
             pwd = p2.in_pwd.text().strip()
             if pwd:
                 sec.set_admin_password(pwd)
+
+        # Store the offline recovery key (works without internet, no password)
+        try:
+            import core.recovery as recovery_mod
+            rk = p2.in_recovery_key.text().strip()
+            if rk:
+                recovery_mod.store_recovery_key(sec.db, rk)
+                if getattr(p2, "chk_save_key", None) and p2.chk_save_key.isChecked():
+                    recovery_mod.write_recovery_note(rk)
+        except Exception:
+            pass
 
         if self.wizard().page(2).chk_policy.isChecked():
             sec.apply_browser_registry_policies()
@@ -354,7 +345,7 @@ class FinishPage(QWizardPage):
             "انقر فوق <strong>إنهاء (Finish)</strong> لبدء حماية أطفالك فوراً."
         )
         lbl.setTextFormat(Qt.TextFormat.RichText)
-        lbl.setStyleSheet("line-height: 1.6; font-size: 14px; color: #cbd5e1;")
+        lbl.setStyleSheet("line-height: 1.6; font-size: 14px; color: #2B2350;")
         layout.addWidget(lbl)
 
         self.chk_launch = QCheckBox("تشغيل برنامج حصين للأطفال الآن 🚀")
@@ -372,12 +363,12 @@ class HaseenSetupWizard(QWizard):
 
         from PyQt6.QtGui import QColor, QPalette
         pal = self.palette()
-        pal.setColor(QPalette.ColorRole.Window, QColor("#0f172a"))
-        pal.setColor(QPalette.ColorRole.WindowText, QColor("#f8fafc"))
-        pal.setColor(QPalette.ColorRole.Base, QColor("#1e293b"))
-        pal.setColor(QPalette.ColorRole.Text, QColor("#f8fafc"))
-        pal.setColor(QPalette.ColorRole.Button, QColor("#1e293b"))
-        pal.setColor(QPalette.ColorRole.ButtonText, QColor("#f8fafc"))
+        pal.setColor(QPalette.ColorRole.Window, QColor("#FFFFFF"))
+        pal.setColor(QPalette.ColorRole.WindowText, QColor("#2B2350"))
+        pal.setColor(QPalette.ColorRole.Base, QColor("#FFFFFF"))
+        pal.setColor(QPalette.ColorRole.Text, QColor("#2B2350"))
+        pal.setColor(QPalette.ColorRole.Button, QColor("#FFFFFF"))
+        pal.setColor(QPalette.ColorRole.ButtonText, QColor("#2B2350"))
         self.setPalette(pal)
 
         icon_path = os.path.join(BASE_DIR, "hassen_icon.png")
@@ -407,6 +398,18 @@ class HaseenSetupWizard(QWizard):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    # Load the bundled Arabic font + apply the shared kid-friendly theme
+    try:
+        from PyQt6.QtGui import QFont, QFontDatabase
+        _fd = os.path.join(BASE_DIR, "assets", "fonts")
+        for _f in ("IBMPlexSansArabic-Regular.ttf", "IBMPlexSansArabic-Bold.ttf"):
+            _p = os.path.join(_fd, _f)
+            if os.path.exists(_p):
+                QFontDatabase.addApplicationFont(_p)
+        app.setFont(QFont("IBM Plex Sans Arabic", 11))
+    except Exception:
+        pass
+    app.setStyleSheet(build_stylesheet())
     wizard = HaseenSetupWizard()
     wizard.show()
     sys.exit(app.exec())

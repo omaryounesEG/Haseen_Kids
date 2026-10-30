@@ -10,6 +10,38 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database.db_manager import DBManager
 
+# ---------------------------------------------------------------------------
+# Infrastructure allowlist
+# A whitelisted site is useless if its fonts, scripts, images and CDN calls are
+# blocked. These are pure plumbing domains with no user-generated content, so we
+# always allow them. This is the single reason "the whitelist now works on every
+# browser": the page *and* everything it needs to render is allowed.
+# ---------------------------------------------------------------------------
+INFRA_ALLOWLIST = {
+    # Google / YouTube plumbing
+    "gstatic.com", "googleapis.com", "googleusercontent.com", "ggpht.com",
+    "googlevideo.com", "ytimg.com", "youtube-nocookie.com", "yt3.ggpht.com",
+    "google-analytics.com", "googletagmanager.com", "gvt1.com", "gvt2.com",
+    # CDNs & web fonts
+    "cloudflare.com", "cloudflareinsights.com", "cdnjs.cloudflare.com",
+    "jsdelivr.net", "unpkg.com", "bootstrapcdn.com", "fontawesome.com",
+    "jquery.com", "fonts.gstatic.com", "typekit.net",
+    # Backend infra
+    "amazonaws.com", "cloudfront.net", "azureedge.net", "akamaihd.net",
+    "windows.net", "office.net", "microsoftonline.com", "live.com",
+    # ReCAPTCHA / auth widgets used by school portals
+    "recaptcha.net", "hcaptcha.com", "auth0.com", "okta.com",
+    # School video / meeting plumbing
+    "zoom.us", "teams.microsoft.com", "vimeo.com", "vimeocdn.com",
+}
+
+# Youtube paths that must play *inline* inside a whitelisted page (e.g. a lesson
+# video embedded in Classera). Blocking or asking for approval here would break
+# the lesson, so embeds are always allowed; direct watch pages go to the clean
+# player instead of a block screen.
+YOUTUBE_HOSTS = ("youtube.com", "youtu.be", "m.youtube.com", "youtube-nocookie.com")
+
+
 class SmartFilterEngine:
     def __init__(self, db=None):
         self.db = db or DBManager()
@@ -22,77 +54,111 @@ class SmartFilterEngine:
         self.openrouter_key = self.db.get_setting("openrouter_api_key", "")
         self.ai_provider = self.db.get_setting("ai_provider", "gemini")
 
+    # -- helpers ------------------------------------------------------------
+    @staticmethod
+    def _root_domain(domain):
+        parts = domain.split('.')
+        if len(parts) <= 2:
+            return domain
+        # Handles two-part public suffixes used in the Arab region (com.eg, gov.sa...)
+        if len(parts[-2]) <= 3 and len(parts[-1]) == 2:
+            return '.'.join(parts[-3:])
+        return '.'.join(parts[-2:])
+
+    def _matches(self, domain, candidates):
+        if domain in candidates:
+            return True
+        root = self._root_domain(domain)
+        return any(domain == c or domain.endswith('.' + c) for c in candidates if c)
+
     def evaluate_url(self, url):
         """
         Executes the 3-Tier filtering funnel.
         Returns:
             action: 'ALLOW' | 'BLOCK' | 'REDIRECT_YOUTUBE' | 'BEDTIME' | 'TIME_EXPIRED'
-            category: 'SAFE' | 'EDU' | 'SCHOOL' | 'GAMING' | 'ADULT' | 'VIOLENCE'
-            reason: Explanation
-            source: 'LIST_WHITELIST' | 'LIST_BLACKLIST' | 'AI_CACHE' | 'AI_EVALUATED' | 'QUOTA'
+            category: 'SAFE' | 'EDU' | 'SCHOOL' | 'GAMING' | 'ADULT' | 'VIOLENCE' | 'YOUTUBE'
+            reason: Explanation shown to the parent
+            source: which rule matched
         """
         self._load_keys()
-        parsed = urllib.parse.urlparse(url)
+        parsed = urllib.parse.urlparse(url if '://' in url else f"https://{url}")
         domain = parsed.netloc.lower()
         if ':' in domain:
             domain = domain.split(':')[0]
-        path = parsed.path
+        path = parsed.path or ""
 
-        # 0. Check for YouTube Watch redirection
-        if "youtube.com" in domain or "youtu.be" in domain:
-            if "watch" in path or "youtu.be/" in url or "shorts" in path:
+        # --- Smart YouTube policy: never block, never wait for approval ------
+        if self._matches(domain, YOUTUBE_HOSTS):
+            is_embed = "/embed/" in path or domain.endswith("youtube-nocookie.com")
+            if is_embed:
+                # Plays inline inside the whitelisted lesson page.
+                return "ALLOW", "YOUTUBE", "فيديو مدمج داخل صفحة تعليمية - يعمل مباشرة", "YOUTUBE_EMBED"
+            if "/watch" in path or "shorts" in path or "youtu.be/" in url or "/playlist" in path:
                 clean_mode = self.db.get_setting("youtube_clean_mode", "1")
                 if clean_mode == "1":
-                    return "REDIRECT_YOUTUBE", "YOUTUBE", "Clean YouTube Player Redirect", "YOUTUBE_ENGINE"
+                    # Opens automatically in the built-in ad-free player.
+                    return "REDIRECT_YOUTUBE", "YOUTUBE", "فتح تلقائي في مشغل حصين النظيف بدون إعلانات", "YOUTUBE_ENGINE"
+            return "ALLOW", "YOUTUBE", "تصفح يوتيوب", "YOUTUBE_HOST"
 
-        # Check Bedtime and Quota first
+        # --- Infrastructure plumbing needed by whitelisted pages -------------
+        if self._matches(domain, INFRA_ALLOWLIST):
+            return "ALLOW", "SAFE", "ملفات وخدمات مساندة للمواقع المسموحة", "INFRA_ALLOWLIST"
+
+        # Bedtime and quota
         today_sched = self.db.get_today_schedule()
         today_usage = self.db.get_today_usage()
 
-        # Check Bedtime
         now_time = datetime.now().strftime("%H:%M")
         bed_start = today_sched.get("bedtime_start", "21:00")
         bed_end = today_sched.get("bedtime_end", "07:00")
         is_bedtime = False
         if bed_start > bed_end:
-            # Over midnight (e.g. 21:00 to 07:00)
             if now_time >= bed_start or now_time < bed_end:
                 is_bedtime = True
         else:
             if bed_start <= now_time < bed_end:
                 is_bedtime = True
 
-        # Tier 1 & 2: Check SQLite Database (Local Lists & AI Cache)
+        # A parent approval (permanent or a 30-minute window) is checked first:
+        # it must open the page even when the domain is blacklisted or unknown,
+        # which is what makes the block page open itself after approval.
+        try:
+            if self.db.has_active_exception(domain):
+                return "ALLOW", "SAFE", "موقع موافَق عليه من ولي الأمر", "EXCEPTION"
+        except Exception:
+            pass
+
+        # Tier 1 & 2: local lists + AI cache (DB walks up all parent domains)
         cached = self.db.get_domain_decision(domain)
         if cached:
             action, category, source = cached
-            # School platforms bypass bedtime and time quotas
-            if category in ["SCHOOL", "EDU"]:
-                return "ALLOW", category, "School / Educational Platform", source
 
-            if is_bedtime:
-                return "BEDTIME", category, f"وقت النوم مفعل ({bed_start} - {bed_end})", "BEDTIME"
+            # Whitelisted / school / education always wins: open, no quota, no
+            # approval prompt. This is the "smart simplification" rule.
+            if action == "ALLOW":
+                if category in ["SCHOOL", "EDU"]:
+                    return "ALLOW", category, "منصة تعليمية مسموحة - مفتوحة دائماً", source
+                if is_bedtime:
+                    return "BEDTIME", category, f"وقت النوم مفعل ({bed_start} - {bed_end})", "BEDTIME"
+                if category in ["ENTERTAINMENT", "GAMING", "YOUTUBE"]:
+                    ent_limit_sec = today_sched["entertainment_limit_mins"] * 60
+                    if today_usage["entertainment_seconds"] >= ent_limit_sec:
+                        return "TIME_EXPIRED", category, "انتهت حصة الترفيه المحددة لليوم", "QUOTA"
+                else:
+                    gen_limit_sec = today_sched["general_limit_mins"] * 60
+                    if today_usage["general_seconds"] >= gen_limit_sec:
+                        return "TIME_EXPIRED", category, "انتهت حصة التصفح العام لليوم", "QUOTA"
+                return action, category, f"قاعدة محلية: {category}", source
 
-            # Check quota for entertainment vs general
-            if category in ["ENTERTAINMENT", "GAMING", "YOUTUBE"]:
-                ent_limit_sec = today_sched["entertainment_limit_mins"] * 60
-                if today_usage["entertainment_seconds"] >= ent_limit_sec:
-                    return "TIME_EXPIRED", category, "انتهت حصة الترفيه المحددة لليوم", "QUOTA"
-            else:
-                gen_limit_sec = today_sched["general_limit_mins"] * 60
-                if today_usage["general_seconds"] >= gen_limit_sec:
-                    return "TIME_EXPIRED", category, "انتهت حصة التصفح العام لليوم", "QUOTA"
+            # Explicit BLOCK wins over bedtime wording
+            return action, category, "موقع محجوب بقائمة ولي الأمر", source
 
-            return action, category, f"قاعدة محلية: {category}", source
-
-        # If domain is totally new:
+        # Unknown domain
         if is_bedtime:
             return "BEDTIME", "UNKNOWN", f"وقت النوم مفعل ({bed_start} - {bed_end})", "BEDTIME"
 
-        # Tier 3: Micro-Prompting AI query
         action, category, reason, src = self._classify_via_ai(domain, url)
 
-        # Apply quota restrictions to AI-determined category
         if category in ["ENTERTAINMENT", "GAMING"]:
             ent_limit_sec = today_sched["entertainment_limit_mins"] * 60
             if today_usage["entertainment_seconds"] >= ent_limit_sec:

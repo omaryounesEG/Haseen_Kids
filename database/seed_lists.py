@@ -37,7 +37,15 @@ WHITELIST_DOMAINS = [
     ("drive.google.com", "SCHOOL", "ALLOW", "LIST_WHITELIST", "Google Drive"),
     ("docs.google.com", "SCHOOL", "ALLOW", "LIST_WHITELIST", "Google Docs"),
     ("teams.microsoft.com", "SCHOOL", "ALLOW", "LIST_WHITELIST", "Microsoft Teams Education"),
-    ("zoom.us", "SCHOOL", "ALLOW", "LIST_WHITELIST", "Zoom Meetings")
+    ("zoom.us", "SCHOOL", "ALLOW", "LIST_WHITELIST", "Zoom Meetings"),
+    ("classera.com", "SCHOOL", "ALLOW", "LIST_WHITELIST", "منصة كلاسيرا التعليمية"),
+    ("office.com", "SCHOOL", "ALLOW", "LIST_WHITELIST", "Microsoft Office Online"),
+    ("w3schools.com", "EDU", "ALLOW", "LIST_WHITELIST", "W3Schools تعلّم البرمجة"),
+    ("weforum.org", "EDU", "ALLOW", "LIST_WHITELIST", "World Economic Forum"),
+    ("britishcouncil.org", "EDU", "ALLOW", "LIST_WHITELIST", "British Council Learn English"),
+    ("ted.com", "EDU", "ALLOW", "LIST_WHITELIST", "TED Talks"),
+    ("nasa.gov", "EDU", "ALLOW", "LIST_WHITELIST", "NASA Kids & Education"),
+    ("si.edu", "EDU", "ALLOW", "LIST_WHITELIST", "Smithsonian Museums")
 ]
 
 BLACKLIST_DOMAINS = [
@@ -81,11 +89,18 @@ BLACKLIST_DOMAINS = [
     ("kaotic.com", "VIOLENCE", "BLOCK", "LIST_BLACKLIST", "Gore & Violence")
 ]
 
-def seed_database():
+def seed_database(only_if_empty=False, include_lists=True):
     db = DBManager()
+
+    if only_if_empty:
+        existing = len(db.list_rules())
+        if existing > 0:
+            print(f"[SKIP] {existing} domain rules already present - lists not touched.")
+            return 0, 0
+
     count_white = 0
     count_black = 0
-    
+
     for item in WHITELIST_DOMAINS:
         domain, cat, act, src, title = item
         db.save_domain_decision(domain, act, cat, src, title)
@@ -97,6 +112,8 @@ def seed_database():
         count_black += 1
 
     print(f"Successfully seeded Tier-1 lists: {count_white} whitelist domains, {count_black} blacklist domains.")
+    return count_white, count_black
+
 
 if __name__ == "__main__":
-    seed_database()
+    seed_database(only_if_empty="--if-empty" in sys.argv)

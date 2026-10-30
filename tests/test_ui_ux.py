@@ -78,10 +78,11 @@ class TestUIUX(unittest.TestCase):
         dlg.close()
 
     def test_04_parent_admin_console(self):
-        """Verify parent administration panel and its 4 tabs"""
+        """Verify parent administration panel and its 5 tabs"""
         admin = ParentAdminDialog()
         self.assertIsNotNone(admin)
-        self.assertEqual(admin.tabs.count(), 4)
+        # 5 tabs: schedule, lists, security/AI, updates/maintenance, child requests
+        self.assertEqual(admin.tabs.count(), 5)
 
         # Tab 0: Schedule
         self.assertIn("الأوقات", admin.tabs.tabText(0))

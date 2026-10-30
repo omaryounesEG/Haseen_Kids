@@ -55,12 +55,17 @@ class TestHaseenKids(unittest.TestCase):
 
     def test_04_smart_filter_engine(self):
         fe = SmartFilterEngine(self.db)
+        self.db.set_setting("youtube_clean_mode", "1")   # deterministic: clean player on
         act, cat, rsn, src = fe.evaluate_url("https://moe.gov.eg/info")
         self.assertEqual(act, "ALLOW")
         self.assertEqual(cat, "SCHOOL")
 
         act, cat, rsn, src = fe.evaluate_url("https://www.youtube.com/watch?v=aqz-KE-bpKQ")
         self.assertEqual(act, "REDIRECT_YOUTUBE")
+
+        # A lesson video embedded inside a school page must play inline instead
+        act, cat, rsn, src = fe.evaluate_url("https://www.youtube.com/embed/aqz-KE-bpKQ")
+        self.assertEqual(act, "ALLOW")
 
     def test_05_approvals_and_codes(self):
         am = ApprovalManager(self.db)

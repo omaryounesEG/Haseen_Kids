@@ -3,7 +3,11 @@ import os
 import json
 from datetime import datetime, date
 
-DB_PATH = "H:\\Haseen_Kids\\database\\haseen.db"
+# Portable path: the database always lives beside this package, whatever drive
+# the project is copied to (C:, D:, H:, USB stick...). Never hardcode a drive.
+# Tests set HASEEN_DB to a throw-away file so they never pollute real data.
+_DB_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.environ.get("HASEEN_DB") or os.path.join(_DB_DIR, "haseen.db")
 
 class DBManager:
     def __init__(self, db_path=DB_PATH):
@@ -125,7 +129,12 @@ class DBManager:
                 "proxy_port": "8089",
                 "youtube_clean_mode": "1",
                 "process_lockdown": "0",
-                "language": "ar"
+                "language": "ar",
+                "recovery_key_hash": "",
+                "recovery_question": "",
+                "recovery_answer_hash": "",
+                "installed_version": "1.2.0",
+                "theme": "kids"
             }
 
             for k, v in defaults.items():
@@ -153,28 +162,130 @@ class DBManager:
             return dict(cursor.fetchall())
 
     def get_domain_decision(self, domain):
-        """Returns (action, category, source) or None if domain not evaluated yet"""
+        """Returns (action, category, source) or None if domain not evaluated yet.
+
+        Walks up *every* parent level so a whitelisted root like `classera.com`
+        also covers `app.classera.com` and `cdn.static.classera.com`. This is what
+        makes one whitelist entry work for all browsers and all sub-resources.
+        """
         if not domain:
             return None
-        domain = domain.lower().strip()
+        domain = domain.lower().strip().rstrip('.')
+
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            # Exact match
-            cursor.execute('SELECT action, category, source FROM domains WHERE domain = ?', (domain,))
-            row = cursor.fetchone()
-            if row:
-                return row
-
-            # Subdomain wildcard check
-            parts = domain.split('.')
-            if len(parts) > 2:
-                parent_domain = '.'.join(parts[1:])
-                cursor.execute('SELECT action, category, source FROM domains WHERE domain = ?', (parent_domain,))
+            candidate = domain
+            # 8 levels max is more than enough for any real hostname.
+            for _ in range(8):
+                cursor.execute('SELECT action, category, source FROM domains WHERE domain = ?', (candidate,))
                 row = cursor.fetchone()
                 if row:
                     return row
-
+                if '.' not in candidate:
+                    break
+                candidate = candidate.split('.', 1)[1]
+                # Stop before walking into a bare TLD (e.g. "com")
+                if '.' not in candidate:
+                    cursor.execute('SELECT action, category, source FROM domains WHERE domain = ?', (candidate,))
+                    return cursor.fetchone()
         return None
+
+    def has_active_exception(self, domain):
+        """True when the parent approved this site (permanent, or a still-valid
+        temporary window). This is what makes a block page open itself the
+        moment the parent approves — without the child reloading anything."""
+        domain = (domain or "").lower().strip().rstrip('.')
+        if not domain:
+            return False
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            # Approve the root once, cover every sub-domain (www., app., cdn. ...)
+            names = [domain]
+            candidate = domain
+            for _ in range(8):
+                if '.' not in candidate:
+                    break
+                candidate = candidate.split('.', 1)[1]
+                names.append(candidate)
+            marks = ",".join("?" * len(names))
+            cursor.execute(f'''
+                SELECT 1 FROM exceptions
+                 WHERE status IN ('APPROVED_PERM', 'APPROVED_TEMP')
+                   AND (expires_at IS NULL OR expires_at > datetime('now'))
+                   AND domain IN ({marks})
+                 LIMIT 1
+            ''', tuple(names))
+            return cursor.fetchone() is not None
+
+    def grant_exception(self, domain, minutes=None):
+        """Parent-side approval in one call: records the exception AND adds the
+        domain rule so every browser and every sub-domain is covered."""
+        domain = (domain or "").lower().strip()
+        if not domain:
+            return False
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            if minutes:
+                cursor.execute('''
+                    UPDATE exceptions
+                       SET status = 'APPROVED_TEMP',
+                           expires_at = datetime('now', ?)
+                     WHERE domain = ? AND status = 'PENDING'
+                ''', (f"+{int(minutes)} minutes", domain))
+            else:
+                cursor.execute('''
+                    UPDATE exceptions SET status = 'APPROVED_PERM'
+                     WHERE domain = ? AND status = 'PENDING'
+                ''', (domain,))
+            conn.commit()
+        if not minutes:
+            self.add_rule(domain, "ALLOW", "SAFE", "PARENT_RULE")
+        return True
+
+    def reject_exception(self, domain):
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE exceptions SET status = 'REJECTED' WHERE domain = ? AND status = 'PENDING'",
+                           ((domain or "").lower().strip(),))
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def list_exception_requests(self, status="PENDING"):
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''SELECT id, domain, url, child_reason, status, created_at
+                                FROM exceptions WHERE status = ? ORDER BY id DESC LIMIT 100''', (status,))
+            return cursor.fetchall()
+
+    def add_rule(self, domain, action="ALLOW", category="SAFE", source="PARENT_RULE", title=None):
+        """Adds or updates one domain rule (used by the parent whitelist manager)."""
+        domain = (domain or "").lower().strip()
+        # Normalise pasted URLs: https://www.Example.com/path -> example.com
+        for prefix in ("https://", "http://", "www."):
+            if domain.startswith(prefix):
+                domain = domain[len(prefix):]
+        domain = domain.split('/')[0].split(':')[0]
+        if not domain or '.' not in domain:
+            return False
+        self.save_domain_decision(domain, action, category, source, title)
+        return True
+
+    def remove_rule(self, domain):
+        domain = (domain or "").lower().strip()
+        with self.get_connection() as conn:
+            cur = conn.cursor()
+            cur.execute('DELETE FROM domains WHERE domain = ?', (domain,))
+            conn.commit()
+            return cur.rowcount > 0
+
+    def list_rules(self, action=None):
+        with self.get_connection() as conn:
+            cur = conn.cursor()
+            if action:
+                cur.execute('SELECT domain, category, source, title FROM domains WHERE action = ? ORDER BY domain', (action,))
+            else:
+                cur.execute('SELECT domain, category, source, title FROM domains ORDER BY domain')
+            return cur.fetchall()
 
     def save_domain_decision(self, domain, action, category, source, title=None):
         domain = domain.lower().strip()
@@ -295,7 +406,10 @@ class DBManager:
             row = cursor.fetchone()
             if row:
                 exc_id, domain = row
-                cursor.execute("UPDATE exceptions SET status = 'APPROVED_TEMP' WHERE id = ?", (exc_id,))
+                cursor.execute("""UPDATE exceptions
+                                     SET status = 'APPROVED_TEMP',
+                                         expires_at = datetime('now', '+30 minutes')
+                                   WHERE id = ?""", (exc_id,))
                 conn.commit()
                 return True, f"تم تمديد وقت التصفح 30 دقيقة للموقع {domain}", "TEMP", domain
 

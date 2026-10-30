@@ -1,117 +1,192 @@
+"""
+Haseen Kids - Final removal tool (works fully offline).
+
+Terminal output is intentionally ENGLISH ONLY: Windows CMD cannot render Arabic
+reliably (CP437/CP1252), which garbles the text. The GUI stays Arabic.
+
+Three independent offline ways to remove the program (a parent may have
+forgotten the password). Any ONE of them is enough:
+
+    1) Parent password
+    2) 16-character Recovery Key (printed at install time)
+    3) Windows Administrator rights (proves an adult owns the PC, no internet)
+
+Usage:
+    python uninstall.py                  interactive menu
+    python uninstall.py --pwd XXX        password path
+    python uninstall.py --key XXXX-...   recovery-key path
+    python uninstall.py --admin          admin path (requires elevation)
+    python uninstall.py --full           elevate, then remove everything
+    add --delete-files to also delete the program folder.
+"""
+
 import os
 import sys
-import subprocess
-import shutil
-import psutil
+import argparse
 
-try:
-    import winreg
-    WINREG_AVAILABLE = True
-except ImportError:
-    WINREG_AVAILABLE = False
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from database.db_manager import DBManager
 from core.security import SecurityManager
+import core.recovery as recovery
 
-def stop_all_haseen_processes():
-    print("[1/4] Stopping all active Haseen processes...")
-    current_pid = os.getpid()
-    count = 0
-    for p in psutil.process_iter(['pid', 'name']):
-        try:
-            if p.pid == current_pid:
-                continue
-            cmd = ' '.join(p.cmdline()).lower()
-            if 'haseen_kids' in cmd:
-                print(f"  - Terminating: {p.name()} (PID: {p.pid})")
-                p.kill()
-                count += 1
-        except Exception:
-            pass
-    print(f"  -> Terminated {count} processes.")
 
-def revert_registry_policies():
-    print("[2/4] Reverting Browser Policies & Restoring Default Windows Settings...")
-    if not WINREG_AVAILABLE:
-        print("  - winreg not available on this platform.")
-        return
+BANNER = """
+==============================================================
+        HASEEN KIDS - FINAL REMOVAL TOOL  (offline)
+==============================================================
+"""
 
-    policies_to_clean = [
-        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Policies\Google\Chrome", [
-            "IncognitoModeAvailability", "ProxyMode", "ProxyServer", "SafeBrowsingProtectionLevel"
-        ]),
-        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Policies\Microsoft\Edge", [
-            "InPrivateModeAvailability", "ProxyMode", "ProxyServer"
-        ])
-    ]
 
-    for root, subkey, val_names in policies_to_clean:
-        try:
-            key = winreg.OpenKey(root, subkey, 0, winreg.KEY_SET_VALUE | winreg.KEY_WOW64_64KEY)
-            for name in val_names:
-                try:
-                    winreg.DeleteValue(key, name)
-                    print(f"  - Removed policy: {name}")
-                except FileNotFoundError:
-                    pass
-            winreg.CloseKey(key)
-        except (PermissionError, FileNotFoundError):
-            pass
+def _print_summary(summary):
+    print("\n" + "=" * 62)
+    print("  DONE - your PC is back to its original state")
+    print("=" * 62)
+    print(f"  - Processes stopped        : {summary.get('processes', 0)}")
+    print(f"  - Browser policies removed : {summary.get('policies', 0)}")
+    print(f"  - Firewall rules removed   : {summary.get('firewall', 0)}")
+    print(f"  - Autostart entries removed: {summary.get('autostart', 0)}")
+    print(f"  - State files cleaned      : {summary.get('state', 0)}")
+    if summary.get("folder"):
+        print("  - The program folder will be deleted in 2 seconds.")
+    print("\n  NOTE: restart your browser to see the change.")
+    print("=" * 62)
 
-def revert_firewall_rules():
-    print("[3/4] Removing Firewall Rules...")
-    try:
-        subprocess.run('netsh advfirewall firewall delete rule name="Haseen_Allow_Proxy_In"', shell=True, capture_output=True)
-        subprocess.run('netsh advfirewall firewall delete rule name="Haseen_Allow_Local"', shell=True, capture_output=True)
-        print("  -> Firewall rules removed.")
-    except Exception as e:
-        print(f"  - Firewall removal note: {e}")
 
-def cleanup_state_files():
-    print("[4/4] Cleaning state and PID locks...")
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    files_to_remove = [
-        os.path.join(base_dir, "core", "service.pid"),
-        os.path.join(base_dir, "core", "watchdog.pid"),
-        os.path.join(base_dir, "core", "daemon.heartbeat")
-    ]
-    for f in files_to_remove:
-        if os.path.exists(f):
-            try:
-                os.remove(f)
-                print(f"  - Deleted {os.path.basename(f)}")
-            except Exception:
-                pass
+def do_remove(delete_files=False, reset_password_only=False, new_password=None):
+    if reset_password_only:
+        db = DBManager()
+        SecurityManager(db).set_admin_password(new_password or "haseen2026")
+        db.set_setting("recovery_key_hash", "")
+        print(f"\n[OK] New password set: {new_password or 'haseen2026'}")
+        return True
 
-def uninstall():
-    print("=" * 65)
-    print("      🛡️  حَصِين للأطفال | Haseen Kids - أداة إزالة التثبيت")
-    print("=" * 65)
+    summary = recovery.full_remove(delete_folder=delete_files)
+    _print_summary(summary)
+    return True
 
+
+def authenticate(pwd=None, key=None, admin=False):
+    """Returns (ok, mode, message)."""
     db = DBManager()
-    sec = SecurityManager(db)
 
-    # Require Parent Password
-    print("\nلإلغاء التثبيت وحذف قيود الحماية، يرجى إدخال كلمة مرور ولي الأمر:")
-    pwd = input("كلمة المرور (الافتراضية: haseen2026): ").strip()
+    if admin:
+        if recovery.is_admin():
+            return True, "admin", "Administrator rights verified"
+        return False, "admin", "This process is not elevated"
 
-    if not sec.verify_admin(pwd):
-        print("\n❌ خطأ: كلمة المرور غير صحيحة! تم رفض عملية إلغاء التثبيت.")
-        sys.exit(1)
+    if key:
+        if recovery.verify_recovery_key(db, key):
+            return True, "key", "Recovery key verified"
+        return False, "key", "Invalid recovery key"
 
-    print("\n✅ تم التحقق من هوية ولي الأمر بنجاح. بدء إزالة البرنامج وإلغاء القيود...")
-    stop_all_haseen_processes()
-    revert_registry_policies()
-    revert_firewall_rules()
-    cleanup_state_files()
+    if pwd is not None:
+        if SecurityManager(db).verify_admin(pwd):
+            return True, "password", "Password verified"
+        return False, "password", "Wrong password"
 
-    print("\n" + "=" * 65)
-    print("🎉 تم إلغاء تثبيت برنامج حصين واستعادة كافة إعدادات جهازك بنجاح!")
-    print("=" * 65)
-    print("• تم إيقاف الخدمة وحارس المراقبة والبروكسي.")
-    print("• تم استعادة إعدادات التصفح الخفي وإلغاء قيود المتصفحات.")
-    print("• جهازك الآن حر تماماً وبنفس حالته الأصلية.")
+    return False, None, "No verification method"
+
+
+def _ask_delete():
+    ans = input("\nAlso delete the whole program folder? [y/N]: ").strip().lower()
+    return ans in ("y", "yes")
+
+
+def interactive():
+    print(BANNER)
+    print("Forgot the password? No problem - any ONE of these works:\n")
+    print("  [1] I have the parent password")
+    print("  [2] I have the 16-character Recovery Key (from the install sheet)")
+    print("  [3] I am the PC administrator - use Windows Administrator rights")
+    print("  [4] Reset the password only (keep the program)")
+    print("  [0] Exit\n")
+
+    choice = input("Choose a method: ").strip()
+
+    if choice == "1":
+        pwd = input("Parent password: ").strip()
+        ok, _, msg = authenticate(pwd=pwd)
+        if not ok:
+            print(f"\n[ERROR] {msg}")
+            return 1
+        return 0 if do_remove(delete_files=_ask_delete()) else 1
+
+    if choice == "2":
+        key = input("Recovery key (e.g. ABCD-EFGH-JKLM-NPQR): ").strip()
+        ok, _, msg = authenticate(key=key)
+        if not ok:
+            print(f"\n[ERROR] {msg}")
+            return 1
+        return 0 if do_remove(delete_files=_ask_delete()) else 1
+
+    if choice == "3":
+        if not recovery.is_admin():
+            print("\nRequesting Administrator rights - press Yes in the Windows prompt...")
+            if recovery.elevate_and_run("--admin --delete-files"):
+                return 0
+            print("[ERROR] Elevation cancelled.")
+            return 1
+        return 0 if do_remove(delete_files=_ask_delete()) else 1
+
+    if choice == "4":
+        print("\nPassword reset needs the recovery key or Administrator rights.")
+        key = input("Recovery key (leave empty to use Administrator rights): ").strip()
+        if key:
+            ok, _, msg = authenticate(key=key)
+        else:
+            ok = recovery.is_admin()
+            msg = "OK" if ok else "Run this tool as administrator"
+        if not ok:
+            print(f"\n[ERROR] {msg}")
+            return 1
+        newp = input("New password (empty = haseen2026): ").strip() or "haseen2026"
+        return 0 if do_remove(reset_password_only=True, new_password=newp) else 1
+
+    return 0
+
+
+def main():
+    parser = argparse.ArgumentParser(add_help=True)
+    parser.add_argument("--pwd")
+    parser.add_argument("--key")
+    parser.add_argument("--admin", action="store_true")
+    parser.add_argument("--full", action="store_true", help="elevate and remove everything")
+    parser.add_argument("--delete-files", action="store_true")
+    parser.add_argument("--reset-password", metavar="NEW")
+    parser.add_argument("--yes", action="store_true", help="no prompts")
+    args = parser.parse_args()
+
+    if args.full and not recovery.is_admin():
+        print("Requesting Administrator rights...")
+        ok = recovery.elevate_and_run("--admin --delete-files" if args.delete_files else "--admin")
+        if not ok:
+            print("[ERROR] Elevation failed. Right-click the file -> Run as administrator.")
+            return 1
+        return 0
+
+    if args.reset_password:
+        if authenticate(key=args.key, admin=args.admin)[0]:
+            return 0 if do_remove(reset_password_only=True, new_password=args.reset_password) else 1
+        print("[ERROR] Verification failed")
+        return 1
+
+    if args.admin or args.key or args.pwd is not None:
+        ok, _, msg = authenticate(pwd=args.pwd, key=args.key, admin=args.admin)
+        if not ok:
+            print(f"[ERROR] {msg}")
+            return 1
+        delete = args.delete_files or args.yes
+        return 0 if do_remove(delete_files=delete) else 1
+
+    try:
+        return interactive()
+    except KeyboardInterrupt:
+        print("\nCancelled.")
+        return 1
+
 
 if __name__ == "__main__":
-    uninstall()
+    sys.exit(main())

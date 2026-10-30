@@ -33,103 +33,9 @@ from core.approvals import ApprovalManager
 from core.updater import SecureGitHubUpdater
 from core.reports import WeeklyReportGenerator
 
-STYLE_SHEET_DARK = """
-QMainWindow, QDialog {
-    background-color: #0f172a;
-    color: #f8fafc;
-}
-QWidget {
-    color: #f8fafc;
-    font-family: 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, Arial, sans-serif;
-    font-size: 14px;
-}
-QGroupBox {
-    border: 1px solid #334155;
-    border-radius: 10px;
-    margin-top: 15px;
-    padding-top: 15px;
-    font-weight: bold;
-    color: #38bdf8;
-}
-QGroupBox::title {
-    subcontrol-origin: margin;
-    subcontrol-position: top right;
-    padding: 0 10px;
-}
-QTabWidget::pane {
-    border: 1px solid #334155;
-    border-radius: 8px;
-    background: #1e293b;
-}
-QTabBar::tab {
-    background: #0f172a;
-    color: #94a3b8;
-    padding: 10px 20px;
-    border-top-left-radius: 8px;
-    border-top-right-radius: 8px;
-    font-weight: bold;
-}
-QTabBar::tab:selected {
-    background: #1e293b;
-    color: #38bdf8;
-    border-bottom: 2px solid #38bdf8;
-}
-QPushButton {
-    background-color: #2563eb;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    padding: 10px 18px;
-    font-weight: bold;
-}
-QPushButton:hover {
-    background-color: #1d4ed8;
-}
-QPushButton#actionBtn {
-    background-color: #10b981;
-}
-QPushButton#actionBtn:hover {
-    background-color: #059669;
-}
-QPushButton#dangerBtn {
-    background-color: #e11d48;
-}
-QPushButton#dangerBtn:hover {
-    background-color: #be123c;
-}
-QLineEdit, QTextEdit, QComboBox, QTimeEdit, QSpinBox {
-    background-color: #0f172a;
-    border: 1px solid #475569;
-    border-radius: 6px;
-    padding: 8px;
-    color: white;
-}
-QProgressBar {
-    border: 1px solid #334155;
-    border-radius: 8px;
-    text-align: center;
-    background-color: #0f172a;
-    color: white;
-    font-weight: bold;
-}
-QProgressBar::chunk {
-    background-color: #10b981;
-    border-radius: 7px;
-}
-QTableWidget {
-    background-color: #0f172a;
-    border: 1px solid #334155;
-    gridline-color: #1e293b;
-    color: white;
-}
-QHeaderView::section {
-    background-color: #1e293b;
-    color: #38bdf8;
-    padding: 6px;
-    border: 1px solid #334155;
-    font-weight: bold;
-}
-"""
+# Child-friendly shared theme (colours, rounding, fonts, tooltips)
+from ui.theme import STYLESHEET as STYLE_SHEET_DARK, tip as add_tip
+
 
 class ResetPasswordDialog(QDialog):
     def __init__(self, db, parent=None):
@@ -147,7 +53,7 @@ class ResetPasswordDialog(QDialog):
 
         layout = QVBoxLayout(self)
         title = QLabel("إعادة تعيين كلمة المرور عبر البريد:")
-        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #38bdf8;")
+        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #7C5CFF;")
         layout.addWidget(title)
 
         parent_email = self.db.get_setting("parent_email", "")
@@ -158,12 +64,12 @@ class ResetPasswordDialog(QDialog):
             lbl_info = QLabel(f"سيتم إرسال رمز تحقق مؤقت (OTP) إلى بريدك المسجل:\n<b>{masked}</b>")
         else:
             lbl_info = QLabel("لم يتم تسجيل بريد إلكتروني لولي الأمر في الإعدادات مسبقاً.")
-            lbl_info.setStyleSheet("color: #ef4444;")
-        lbl_info.setStyleSheet("color: #cbd5e1; line-height: 1.4;")
+            lbl_info.setStyleSheet("color: #FF5C7A;")
+        lbl_info.setStyleSheet("color: #2B2350; line-height: 1.4;")
         layout.addWidget(lbl_info)
 
         self.btn_send_otp = QPushButton("📨 إرسال رمز التحقق إلى بريدي الآن")
-        self.btn_send_otp.setStyleSheet("background-color: #0284c7; color: white; padding: 8px; border-radius: 6px; font-weight: bold;")
+        self.btn_send_otp.setStyleSheet("background-color: #7C5CFF; color: white; padding: 8px; border-radius: 6px; font-weight: bold;")
         self.btn_send_otp.clicked.connect(self.send_otp)
         layout.addWidget(self.btn_send_otp)
 
@@ -180,7 +86,7 @@ class ResetPasswordDialog(QDialog):
         self.in_new_p2.setPlaceholderText("تأكيد كلمة المرور الجديدة")
 
         self.chk_show = QCheckBox("👁️ إظهار كلمة المرور للتأكد")
-        self.chk_show.setStyleSheet("color: #38bdf8;")
+        self.chk_show.setStyleSheet("color: #7C5CFF;")
         self.chk_show.toggled.connect(self.toggle_show)
 
         layout.addWidget(self.in_otp)
@@ -263,7 +169,7 @@ class PasswordDialog(QDialog):
 
         layout = QVBoxLayout(self)
         lbl = QLabel("أدخل كلمة مرور ولي الأمر للوصول للإعدادات:")
-        lbl.setStyleSheet("font-size: 15px; font-weight: bold; color: #38bdf8;")
+        lbl.setStyleSheet("font-size: 15px; font-weight: bold; color: #7C5CFF;")
         layout.addWidget(lbl)
 
         self.pwd_input = QLineEdit()
@@ -272,12 +178,12 @@ class PasswordDialog(QDialog):
         layout.addWidget(self.pwd_input)
 
         self.chk_show = QCheckBox("👁️ إظهار كلمة المرور للتأكد")
-        self.chk_show.setStyleSheet("color: #94a3b8;")
+        self.chk_show.setStyleSheet("color: #6B6390;")
         self.chk_show.toggled.connect(lambda c: self.pwd_input.setEchoMode(QLineEdit.EchoMode.Normal if c else QLineEdit.EchoMode.Password))
         layout.addWidget(self.chk_show)
 
         self.btn_forgot = QPushButton("🔗 نسيت كلمة المرور؟ (استرجاع عبر البريد)")
-        self.btn_forgot.setStyleSheet("color: #38bdf8; background: none; border: none; text-align: right; text-decoration: underline; font-size: 12px; cursor: pointer;")
+        self.btn_forgot.setStyleSheet("color: #7C5CFF; background: none; border: none; text-align: right; text-decoration: underline; font-size: 12px; cursor: pointer;")
         self.btn_forgot.clicked.connect(self.open_password_reset)
         layout.addWidget(self.btn_forgot)
 
@@ -395,9 +301,9 @@ class HaseenMainWindow(QMainWindow):
 
         title_box = QVBoxLayout()
         self.lbl_title = QLabel("حَصِين للأطفال | Haseen Kids")
-        self.lbl_title.setStyleSheet("font-size: 22px; font-weight: bold; color: #38bdf8;")
+        self.lbl_title.setStyleSheet("font-size: 22px; font-weight: bold; color: #7C5CFF;")
         self.lbl_sub = QLabel("حماية تصفح ذكية • مشغل يوتيوب معزول بدون إعلانات • إدارة الوقت")
-        self.lbl_sub.setStyleSheet("font-size: 13px; color: #94a3b8;")
+        self.lbl_sub.setStyleSheet("font-size: 13px; color: #6B6390;")
         title_box.addWidget(self.lbl_title)
         title_box.addWidget(self.lbl_sub)
         top_bar.addLayout(title_box)
@@ -406,11 +312,14 @@ class HaseenMainWindow(QMainWindow):
 
         self.lang_btn = QPushButton("🌐 English / عربي")
         self.lang_btn.clicked.connect(self.toggle_language)
+        add_tip(self.lang_btn, "تغيير لغة واجهة البرنامج بين العربية والإنجليزية.")
         top_bar.addWidget(self.lang_btn)
 
         self.admin_btn = QPushButton("⚙️ لوحة ولي الأمر")
         self.admin_btn.setObjectName("actionBtn")
         self.admin_btn.clicked.connect(self.open_parent_panel)
+        add_tip(self.admin_btn, "تفتح لوحة التحكم الكاملة (المواقع، الوقت، التقارير، التحديث).<br>"
+                               "محمية بكلمة مرور ولي الأمر حتى لا يدخلها الطفل.")
         top_bar.addWidget(self.admin_btn)
 
         main_layout.addLayout(top_bar)
@@ -437,6 +346,68 @@ class HaseenMainWindow(QMainWindow):
     def setup_child_tab(self):
         layout = QVBoxLayout(self.tab_child)
         layout.setSpacing(18)
+        layout.setContentsMargins(18, 18, 18, 18)
+
+        # Hero greeting card - gives the dashboard a friendly face
+        hero = QGroupBox()
+        hero.setStyleSheet(
+            "QGroupBox { background: qlineargradient(x1:0,y1:0,x2:1,y2:0,"
+            "stop:0 #F4F1FF, stop:1 #E9F7FF); border:2px solid #E6E0FF;"
+            "border-radius:22px; padding:16px; }"
+        )
+        h_hero = QHBoxLayout(hero)
+        mascot = QLabel("🦉")
+        mascot.setStyleSheet("font-size:52px;")
+        h_hero.addWidget(mascot)
+        h_hero_txt = QVBoxLayout()
+        self.lbl_hero = QLabel("أهلاً يا بطل! 👋")
+        self.lbl_hero.setStyleSheet("font-size:22px; font-weight:800; color:#7C5CFF;")
+        self.lbl_hero_sub = QLabel("حَصِين يحميك وأنت تتعلم وتلعب بأمان — اختر ما تريد فعله اليوم.")
+        self.lbl_hero_sub.setStyleSheet("font-size:14px; color:#6B6390;")
+        h_hero_txt.addWidget(self.lbl_hero)
+        h_hero_txt.addWidget(self.lbl_hero_sub)
+        h_hero.addLayout(h_hero_txt)
+        h_hero.addStretch()
+        layout.addWidget(hero)
+
+        # Big friendly action tiles
+        tiles = QHBoxLayout()
+        tiles.setSpacing(14)
+
+        def tile(icon, title, subtitle, color, on_click, tip_text):
+            card = QGroupBox()
+            card.setStyleSheet(
+                f"QGroupBox {{ background:{color}; border:none; border-radius:20px; padding:18px; }}"
+            )
+            v = QVBoxLayout(card)
+            v.setSpacing(6)
+            i = QLabel(icon)
+            i.setStyleSheet("font-size:38px; background:transparent;")
+            t = QLabel(title)
+            t.setStyleSheet("font-size:17px; font-weight:800; color:#FFFFFF; background:transparent;")
+            st = QLabel(subtitle)
+            st.setWordWrap(True)
+            st.setStyleSheet("font-size:13px; color:rgba(255,255,255,0.92); background:transparent;")
+            b = QPushButton("ابدأ الآن")
+            b.setStyleSheet("background:rgba(255,255,255,0.22); color:#FFFFFF; border-radius:12px; padding:9px;")
+            b.clicked.connect(on_click)
+            v.addWidget(i)
+            v.addWidget(t)
+            v.addWidget(st)
+            v.addWidget(b)
+            add_tip(card, tip_text)
+            return card
+
+        tiles.addWidget(tile("🎬", "فيديو نظيف", "شاهد أي فيديو بدون إعلانات",
+                             "#7C5CFF", lambda: self.tabs.setCurrentIndex(1),
+                             "يفتح تبويب يوتيوب النظيف: تلصق الرابط فيعمل بدون إعلانات ولا مقترحات."))
+        tiles.addWidget(tile("📊", "رصيدي اليوم", "اعرف كم بقي من وقتك",
+                             "#22C1A8", lambda: self.tabs.setCurrentIndex(0),
+                             "يرجعك لمؤشرات الوقت: كم استهلكت وكم بقي لك اليوم."))
+        tiles.addWidget(tile("✉️", "اطلب موقعاً", "أرسل طلباً لوالدك بضغطة",
+                             "#FF6B9D", lambda: self.tabs.setCurrentIndex(2),
+                             "لو احتجت موقعاً محجوباً لدرسك، اطلبه من هنا وسيصل لوالدك."))
+        layout.addLayout(tiles)
 
         # Time gauges
         grp_time = QGroupBox("مؤشرات الوقت المتبقي لليوم:")
@@ -445,18 +416,24 @@ class HaseenMainWindow(QMainWindow):
         # Entertainment
         self.lbl_ent = QLabel("🎮 وقت الترفيه والألعاب:")
         self.bar_ent = QProgressBar()
+        self.bar_ent.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+        add_tip(self.bar_ent, "الشريط يوضح كم استهلكت من وقت الألعاب والترفيه اليوم.<br>"
+                              "عندما يكتمل الشريط تتوقف الألعاب حتى الغد (أو حتى يزيدها والدك).")
         v_time.addWidget(self.lbl_ent)
         v_time.addWidget(self.bar_ent)
 
         # General Browsing
         self.lbl_gen = QLabel("🌐 وقت التصفح العام:")
         self.bar_gen = QProgressBar()
+        self.bar_gen.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+        add_tip(self.bar_gen, "وقت التصفح العادي للمواقع المسموحة.<br>"
+                              "منصات المدرسة والتعليم لا تُحسب من هذا الوقت إطلاقاً.")
         v_time.addWidget(self.lbl_gen)
         v_time.addWidget(self.bar_gen)
 
         # School Platforms Status
         lbl_sch = QLabel("📚 منصات المدرسة والتعليم (مدرستي، بنك المعرفة، خان أكاديمي): مفتوحة دائماً بلا حدود ✅")
-        lbl_sch.setStyleSheet("color: #10b981; font-weight: bold; margin-top: 8px;")
+        lbl_sch.setStyleSheet("color: #22C1A8; font-weight: bold; margin-top: 8px;")
         v_time.addWidget(lbl_sch)
 
         layout.addWidget(grp_time)
@@ -471,8 +448,10 @@ class HaseenMainWindow(QMainWindow):
         )
         lbl_tips = QLabel(tips_text)
         lbl_tips.setTextFormat(Qt.TextFormat.RichText)
-        lbl_tips.setStyleSheet("line-height: 1.6; color: #cbd5e1;")
+        lbl_tips.setStyleSheet("line-height: 1.6; color: #2B2350;")
         v_tips.addWidget(lbl_tips)
+        from PyQt6.QtWidgets import QSizePolicy
+        grp_tips.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
         layout.addWidget(grp_tips)
 
         layout.addStretch()
@@ -483,22 +462,25 @@ class HaseenMainWindow(QMainWindow):
         layout.setSpacing(14)
 
         info_lbl = QLabel("مشغل يوتيوب النظيف: تشغيل فوري بدون أي إعلانات وبدون سحب الصفحة الثقيلة")
-        info_lbl.setStyleSheet("color: #38bdf8; font-weight: bold;")
+        info_lbl.setStyleSheet("color: #7C5CFF; font-weight: bold;")
         layout.addWidget(info_lbl)
 
         h_search = QHBoxLayout()
         self.yt_input = QLineEdit()
         self.yt_input.setPlaceholderText("الصق رابط الفيديو من يوتيوب (مثال: https://www.youtube.com/watch?v=...)")
+        add_tip(self.yt_input, "الصق رابط أي فيديو من يوتيوب هنا.<br>"
+                               "سيُفتح في مشغل حَصِين النظيف: بدون إعلانات وبدون تعليقات ولا فيديوهات مقترحة.")
         self.yt_play_btn = QPushButton("تشغيل الفيديو فوراً 🎬")
         self.yt_play_btn.setObjectName("actionBtn")
         self.yt_play_btn.clicked.connect(self.play_clean_youtube)
+        add_tip(self.yt_play_btn, "يبدأ تشغيل الفيديو فوراً في المشغل النظيف المعزول.")
 
         h_search.addWidget(self.yt_input)
         h_search.addWidget(self.yt_play_btn)
         layout.addLayout(h_search)
 
         self.yt_status = QLabel("جاهز للتشغيل")
-        self.yt_status.setStyleSheet("color: #94a3b8;")
+        self.yt_status.setStyleSheet("color: #6B6390;")
         layout.addWidget(self.yt_status)
 
         # Safe Recommendations list
@@ -634,7 +616,7 @@ class HaseenMainWindow(QMainWindow):
         self.tray_icon.setToolTip("حَصِين للأطفال | نظام الحماية الأسرية نشط 🛡️")
 
         tray_menu = QMenu()
-        tray_menu.setStyleSheet("QMenu { background-color: #1e293b; color: #f8fafc; font-family: 'IBM Plex Sans Arabic', sans-serif; font-size: 13px; } QMenu::item:selected { background-color: #2563eb; }")
+        tray_menu.setStyleSheet("QMenu { background-color: #FFFFFF; color: #2B2350; font-family: 'IBM Plex Sans Arabic', sans-serif; font-size: 13px; } QMenu::item:selected { background-color: #2563eb; }")
 
         act_show = tray_menu.addAction("عرض الواجهة الرئيسية 🛡️")
         act_show.triggered.connect(self.show_main_window)
@@ -711,7 +693,8 @@ def setup_custom_fonts():
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     setup_custom_fonts()
-    app.setFont(QFont("IBM Plex Sans Arabic", 10))
+    app.setFont(QFont("IBM Plex Sans Arabic", 11))
+    app.setStyleSheet(STYLE_SHEET_DARK)   # one kid-friendly palette everywhere
 
     win = HaseenMainWindow()
     if "--minimized" not in sys.argv:
