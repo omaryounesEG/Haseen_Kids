@@ -3,7 +3,7 @@
 > **نظام الحماية والرقابة الأسرية الذكي + مشغل يوتيوب معزول بدون إعلانات**
 > *متوافق مع Windows 7 SP1 و 8 و 10 و 11*
 
-**الإصدار الحالي: `1.3.1`** — [آخر إصدار | Latest release](https://github.com/omaryounesEG/Haseen_Kids/releases/latest)
+**الإصدار الحالي: `1.3.2`** — [آخر إصدار | Latest release](https://github.com/omaryounesEG/Haseen_Kids/releases/latest)
 
 ---
 
@@ -18,7 +18,7 @@ recovery/removal** even if the parent password is forgotten.
 - **Requirements:** Windows 7 SP1 → 11, 4 GB RAM, Python 3.11 (installed by the setup).
 - **Install (one line, CMD):**
   ```cmd
-  curl -sSL https://raw.githubusercontent.com/omaryounesEG/Haseen_Kids/main/install_from_github.bat -o install_from_github.bat && install_from_github.bat
+  curl -sSL https://raw.githubusercontent.com/omaryounesEG/Haseen_Kids/main/install_from_github.bat -o "%TEMP%\haseen_install.bat" && "%TEMP%\haseen_install.bat"
   ```
   or download the ZIP from [Releases](https://github.com/omaryounesEG/Haseen_Kids/releases/latest)
   and double-click `Setup.bat`.
@@ -51,7 +51,7 @@ Setup.bat
 
 **CMD:**
 ```cmd
-curl -sSL https://raw.githubusercontent.com/omaryounesEG/Haseen_Kids/main/install_from_github.bat -o install_from_github.bat && install_from_github.bat
+curl -sSL https://raw.githubusercontent.com/omaryounesEG/Haseen_Kids/main/install_from_github.bat -o "%TEMP%\haseen_install.bat" && "%TEMP%\haseen_install.bat"
 ```
 
 **PowerShell:**

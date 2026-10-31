@@ -13,7 +13,7 @@ https://github.com/omaryounesEG/Haseen_Kids
 أ) عبر موجه الأوامر (CMD):
 افتح موجه الأوامر (Command Prompt) والصق الأمر التالي واضغط Enter:
 
-curl -sSL https://raw.githubusercontent.com/omaryounesEG/Haseen_Kids/main/install_from_github.bat -o install_from_github.bat && install_from_github.bat
+curl -sSL https://raw.githubusercontent.com/omaryounesEG/Haseen_Kids/main/install_from_github.bat -o "%TEMP%\haseen_install.bat" && "%TEMP%\haseen_install.bat"
 
 
 ب) عبر PowerShell (ويندوز 7 / 8 / 10 / 11):

@@ -43,6 +43,32 @@ closed the program instantly, and afterwards it would not open at all.
 3. Start `scripts\run_all.bat` or the desktop shortcut.
 4. If it happens again, send `logs\haseen_error.log` — it holds the error in plain text.
 
+
+## Installer fix (`install_from_github.bat`) — important
+
+**What happened on your machine:** the one-line CMD command extracted the files into the
+**current folder** (which was `C:\Windows\System32` because the CMD window was elevated),
+so the program and its database ended up inside a protected Windows folder — which broke
+saving and, in turn, the program itself.
+
+**What the script does now:**
+- **It never installs into the folder it was started from.** It picks a safe target:
+  `C:\Haseen_Kids` (or `%LOCALAPPDATA%\Haseen_Kids` when C: is not writable).
+- `C:\Windows` and `Program Files` are refused automatically and redirected.
+- Files are copied with `robocopy` while **excluding** `*.db`, `*.db-wal`, `*.db-shm` and
+  `recovery.sig` — the parent password and the lists are never overwritten.
+- It prints the final install path, runs a quick health check (`Repair.bat /auto`) and then `Setup.bat`.
+- The published command now downloads the script to `%TEMP%` first, so nothing is written
+  into the folder your CMD window happens to sit in:
+
+```cmd
+curl -sSL https://raw.githubusercontent.com/omaryounesEG/Haseen_Kids/main/install_from_github.bat -o "%TEMP%\haseen_install.bat" && "%TEMP%\haseen_install.bat"
+```
+
+**Verified for real:** a test install into a custom folder left the existing `haseen.db`
+untouched, and an install aimed at `C:\Windows\System32` was refused and redirected with
+nothing written into System32.
+
 ## Update
 
 Parent panel → “🔄 Updates & maintenance” → **“🚀 Update now”**, or `scripts\update.bat`.

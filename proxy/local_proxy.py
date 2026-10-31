@@ -484,7 +484,7 @@ class LocalProxyServer:
                 left = 0
             payload = json.dumps({
                 "status": "online", "service": "Haseen Local Proxy",
-                "port": self.port, "version": "1.3.1",
+                "port": self.port, "version": "1.3.2",
                 "paused": bool(left), "pause_seconds_left": left
             }, ensure_ascii=False).encode()
             await send(payload)

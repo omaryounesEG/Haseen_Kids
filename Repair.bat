@@ -3,6 +3,10 @@ setlocal enabledelayedexpansion
 title Haseen Kids - Repair (Fix installation)
 cd /d "%~dp0"
 
+:: /auto  -> called by the one-line installer: never wait for a key press.
+set "AUTO="
+if /I "%~1"=="/auto" set "AUTO=1"
+
 echo ==============================================================
 echo    HASEEN KIDS - REPAIR / FIX INSTALLATION
 echo ==============================================================
@@ -22,7 +26,7 @@ if !ERRORLEVEL! EQU 0 (
     echo [ERROR] This folder is protected by Windows: %CD%
     echo         Move the whole Haseen_Kids folder to C:\Haseen_Kids
     echo         and run Repair.bat again.
-    pause
+    call :maybe_pause
     exit /b 1
 )
 
@@ -56,7 +60,7 @@ if not defined SYS_PY (
 if not defined SYS_PY (
     echo [ERROR] Python not found. Install Python 3.11 x64 from python.org
     echo         and tick "Add python.exe to PATH", then run Setup.bat.
-    pause
+    call :maybe_pause
     exit /b 1
 )
 echo [1/5] Python found: !SYS_PY!
@@ -80,14 +84,14 @@ if exist "!VENV_PY!" (
 "!SYS_PY!" -m venv "%~dp0venv"
 if !ERRORLEVEL! NEQ 0 (
     echo [ERROR] Could not create the environment. Check free space and permissions.
-    pause
+    call :maybe_pause
     exit /b 1
 )
 "%~dp0venv\Scripts\python.exe" -m pip install --upgrade pip --quiet
 "%~dp0venv\Scripts\python.exe" -m pip install -r "%~dp0requirements.txt" --quiet
 if !ERRORLEVEL! NEQ 0 (
     echo [ERROR] Installing the required packages failed. Check your internet connection.
-    pause
+    call :maybe_pause
     exit /b 1
 )
 :env_ready
@@ -121,7 +125,7 @@ echo [5/5] Verifying the program components...
 "%~dp0venv\Scripts\python.exe" -c "import sys; sys.path.insert(0, r'%~dp0'); import proxy.filter_engine, core.security, core.recovery, ui.theme; print('      All components load correctly.')"
 if !ERRORLEVEL! NEQ 0 (
     echo [ERROR] A component failed to load - see the message above.
-    pause
+    call :maybe_pause
     exit /b 1
 )
 
@@ -134,4 +138,9 @@ if exist "%~dp0logs\haseen_error.log" (
     echo   Previous errors are saved in: logs\haseen_error.log
 )
 echo.
+call :maybe_pause
+
+:maybe_pause
+if defined AUTO goto :eof
 pause
+goto :eof
