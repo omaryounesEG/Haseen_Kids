@@ -430,3 +430,35 @@ class TestInstallGuards(unittest.TestCase):
             text = fh.read()
         self.assertIn("REPAIR", text.upper())
         self.assertIn("haseen_before_repair.db", text)
+
+
+class TestUiUtils(unittest.TestCase):
+    """Nothing that talks to the OS may block the GUI thread."""
+
+    def test_port_probe_does_not_block(self):
+        import time
+        from core.uiutils import port_is_open
+        t0 = time.time()
+        result = port_is_open("127.0.0.1", 6553, timeout=0.3)
+        elapsed = time.time() - t0
+        self.assertFalse(result)
+        self.assertLess(elapsed, 1.0, f"probe took {elapsed:.2f}s - would freeze the UI")
+
+    def test_open_external_returns_immediately(self):
+        import time
+        from core.uiutils import open_external
+        t0 = time.time()
+        th = open_external("")  # empty url -> no browser, but must not block
+        self.assertLess(time.time() - t0, 0.5)
+        self.assertTrue(th.daemon)
+
+    def test_freeze_watchdog_writes_a_report(self):
+        from core.crashguard import install_freeze_watchdog, dump_all_stacks, beat
+        th = install_freeze_watchdog(threshold=3600)   # never fires in tests
+        self.assertTrue(th.daemon)
+        beat()
+        path = dump_all_stacks("unit test")
+        import os
+        self.assertTrue(os.path.exists(path))
+        text = open(path, encoding="utf-8").read()
+        self.assertIn("thread", text.lower())

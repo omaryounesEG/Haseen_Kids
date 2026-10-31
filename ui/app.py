@@ -20,7 +20,8 @@ from PyQt6.QtWidgets import (
     QLabel, QPushButton, QLineEdit, QTextEdit, QTabWidget,
     QProgressBar, QSpinBox, QTimeEdit, QTableWidget, QTableWidgetItem,
     QHeaderView, QMessageBox, QDialog, QFormLayout, QComboBox,
-    QCheckBox, QGroupBox, QStackedWidget, QSystemTrayIcon, QMenu
+    QCheckBox, QGroupBox, QStackedWidget, QSystemTrayIcon, QMenu,
+    QScrollArea, QFrame
 )
 from PyQt6.QtCore import Qt, QTimer, QTime
 from PyQt6.QtGui import QFont, QIcon, QPixmap, QFontDatabase
@@ -226,24 +227,42 @@ class HaseenMainWindow(QMainWindow):
         self.apply_layout_direction()
 
         self._force_exit = False
+        # These must exist before init_ui(): it renders the gauges once.
+        self._gauges_busy = False
+        self._gauges_last = None
         self.init_ui()
         self.setup_system_tray()
 
         # Ensure proxy and tracker are active even if service daemon was not started separately
         self._ensure_embedded_services()
 
-        # Update timer for live counters
+        # Update timer for live counters.
+        # 5s (not 3s) and never re-entrant: a slow query used to queue timers
+        # up and starve the event loop -- the window looked frozen.
+        # Freeze watchdog: the child window owns the heartbeat; if the GUI
+        # thread stops answering for 8s we dump every stack to
+        # logs/haseen_freeze.log so the hang can be diagnosed instead of guessed.
+        try:
+            from core.crashguard import install_freeze_watchdog, beat
+            install_freeze_watchdog(threshold=8.0)
+            self._beat_timer = QTimer(self)
+            self._beat_timer.timeout.connect(beat)
+            self._beat_timer.start(1000)
+        except Exception:
+            pass
+
+        self._gauges_busy = False
+        self._gauges_last = None
         self.timer = QTimer(self)
-        self.timer.timeout.connect(self.refresh_usage_gauges)
-        self.timer.start(3000)
+        self.timer.timeout.connect(self._tick_gauges)
+        self.timer.start(5000)
 
     def _ensure_embedded_services(self):
-        import socket
         import time
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        result = sock.connect_ex(("127.0.0.1", 8089))
-        sock.close()
-        if result != 0:
+        # Short timeout: a bare connect_ex() to a filtered port blocks the GUI
+        # thread for ~2s on Windows (measured), which delays the first paint.
+        from core.uiutils import port_is_open
+        if not port_is_open("127.0.0.1", 8089, timeout=0.3):
             from proxy.local_proxy import LocalProxyServer
             def run_proxy():
                 try:
@@ -284,6 +303,22 @@ class HaseenMainWindow(QMainWindow):
             self.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
         else:
             self.setLayoutDirection(Qt.LayoutDirection.LeftToRight)
+
+    def keyPressEvent(self, event):
+        """Ctrl+Shift+F12 = write a diagnostic report (useful when it feels stuck)."""
+        try:
+            mods = event.modifiers()
+            if (event.key() == Qt.Key.Key_F12
+                    and mods & Qt.KeyboardModifier.ControlModifier
+                    and mods & Qt.KeyboardModifier.ShiftModifier):
+                from core.crashguard import dump_all_stacks
+                path = dump_all_stacks("requested by Ctrl+Shift+F12")
+                QMessageBox.information(self, "تقرير التشخيص",
+                                        "تم حفظ تقرير التشخيص في:" + chr(10) + path)
+                return
+        except Exception:
+            pass
+        super().keyPressEvent(event)
 
     def init_ui(self):
         central = QWidget()
@@ -353,9 +388,23 @@ class HaseenMainWindow(QMainWindow):
 
     # --- Child Dashboard Tab ---
     def setup_child_tab(self):
-        layout = QVBoxLayout(self.tab_child)
+        # Everything lives inside a scroll area: on a small screen the parent
+        # no longer has to maximise the window to reach the lower buttons, and
+        # a resize never has to squeeze the cards below their readable size.
+        outer = QVBoxLayout(self.tab_child)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("QScrollArea { background: transparent; }")
+        inner = QWidget()
+        layout = QVBoxLayout(inner)
         layout.setSpacing(18)
         layout.setContentsMargins(18, 18, 18, 18)
+        scroll.setWidget(inner)
+        outer.addWidget(scroll)
 
         # Hero greeting card - gives the dashboard a friendly face
         hero = QGroupBox()
@@ -550,6 +599,16 @@ class HaseenMainWindow(QMainWindow):
         layout.addStretch()
 
     # --- Action Handlers ---
+    def _tick_gauges(self):
+        """Timer slot: keep the GUI thread free and skip useless repaints."""
+        if self._gauges_busy:
+            return
+        self._gauges_busy = True
+        try:
+            self.refresh_usage_gauges()
+        finally:
+            self._gauges_busy = False
+
     def refresh_usage_gauges(self):
         today_usage = self.db.get_today_usage()
         today_sched = self.db.get_today_schedule()
@@ -563,11 +622,16 @@ class HaseenMainWindow(QMainWindow):
         ent_rem_min = max(0, (ent_limit - ent_used) // 60)
         gen_rem_min = max(0, (gen_limit - gen_used) // 60)
 
-        self.lbl_ent.setText(f"🎮 وقت الترفيه والألعاب: متبقي {ent_rem_min} دقيقة (من أصل {today_sched['entertainment_limit_mins']} دقيقة)")
+        ent_text = f"🎮 وقت الترفيه والألعاب: متبقي {ent_rem_min} دقيقة (من أصل {today_sched['entertainment_limit_mins']} دقيقة)"
+        if self._gauges_last != ent_text:
+            self.lbl_ent.setText(ent_text)
         pct_ent = min(100, int((ent_used / ent_limit) * 100)) if ent_limit > 0 else 100
         self.bar_ent.setValue(100 - pct_ent)
 
-        self.lbl_gen.setText(f"🌐 وقت التصفح العام: متبقي {gen_rem_min} دقيقة (من أصل {today_sched['general_limit_mins']} دقيقة)")
+        gen_text = f"🌐 وقت التصفح العام: متبقي {gen_rem_min} دقيقة (من أصل {today_sched['general_limit_mins']} دقيقة)"
+        if self._gauges_last != (ent_text, gen_text):
+            self.lbl_gen.setText(gen_text)
+            self._gauges_last = (ent_text, gen_text)
         pct_gen = min(100, int((gen_used / gen_limit) * 100)) if gen_limit > 0 else 100
         self.bar_gen.setValue(100 - pct_gen)
 

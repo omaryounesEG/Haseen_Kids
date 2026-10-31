@@ -81,7 +81,7 @@ def verify_recovery_key(db, key):
     return False
 
 
-def write_recovery_note(key, version="1.3.2"):
+def write_recovery_note(key, version="1.3.3"):
     """Writes a printable note to Documents and returns its path."""
     folder = os.path.join(os.path.expanduser("~"), "Documents")
     try:

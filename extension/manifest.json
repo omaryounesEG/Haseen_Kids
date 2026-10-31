@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "حَصِين للأطفال | Haseen Kids Protection",
-  "version": "1.3.2",
+  "version": "1.3.3",
   "description": "حَصِين للأطفال: حجب المواقع غير المناسبة، فتح تلقائي لمشغل يوتيوب النظيف، وصفحة حجب عربية واضحة",
   "icons": {
     "128": "icon.png"

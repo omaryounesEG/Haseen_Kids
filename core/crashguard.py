@@ -17,6 +17,7 @@ import datetime
 import os
 import sys
 import threading
+import time
 import traceback
 
 LOG_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "logs")
@@ -181,3 +182,71 @@ def safe(slot, context="slot"):
             _show_error_dialog(friendly_message(tb), tb)
             return None
     return wrapper
+
+
+# ---------------------------------------------------------------------------
+# Freeze watchdog: a frozen window leaves no traceback, so we take one.
+# ---------------------------------------------------------------------------
+_freeze_thread = None
+_last_beat = 0.0
+
+
+def _app_dir():
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def dump_all_stacks(reason="frozen"):
+    """Write the stack of every thread; returns the path of the report."""
+    path = os.path.join(_app_dir(), "logs", "haseen_freeze.log")
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+    except Exception:
+        pass
+    stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    lines = [f"===== {stamp} :: {reason} ====="]
+    frames = sys._current_frames()
+    names = {t.ident: t.name for t in threading.enumerate()}
+    for tid, frame in frames.items():
+        lines.append(f"\n--- thread {names.get(tid, tid)} (id={tid}) ---")
+        lines.extend(traceback.format_stack(frame))
+    try:
+        with open(path, "a", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n\n")
+    except Exception:
+        pass
+    return path
+
+
+def install_freeze_watchdog(threshold=8.0, app_dir=None):
+    """Heartbeat from the GUI thread; if it stops, dump every stack.
+
+    The GUI thread calls ``beat()`` (from a QTimer).  A daemon thread checks
+    the gap: if the GUI thread has not beaten for *threshold* seconds the
+    program is frozen, and the report tells us exactly where.
+    """
+    global _freeze_thread, _last_beat
+    if _freeze_thread is not None:
+        return _freeze_thread
+
+    _last_beat = time.time()
+
+    def _loop():
+        reported_at = 0.0
+        while True:
+            time.sleep(1.0)
+            gap = time.time() - _last_beat
+            if gap > threshold and (time.time() - reported_at) > 60:
+                reported_at = time.time()
+                try:
+                    dump_all_stacks(f"GUI thread silent for {gap:.1f}s")
+                except Exception:
+                    pass
+
+    _freeze_thread = threading.Thread(target=_loop, daemon=True, name="freeze-watchdog")
+    _freeze_thread.start()
+    return _freeze_thread
+
+
+def beat():
+    global _last_beat
+    _last_beat = time.time()

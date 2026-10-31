@@ -4,15 +4,17 @@ from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QLineEdit, QTabWidget, QTableWidget, QTableWidgetItem,
     QHeaderView, QMessageBox, QFormLayout, QComboBox,
-    QCheckBox, QGroupBox, QSpinBox, QTimeEdit, QWidget
+    QCheckBox, QGroupBox, QSpinBox, QTimeEdit, QWidget,
+    QScrollArea, QFrame
 )
 from PyQt6.QtCore import Qt, QTime, QUrl
-from PyQt6.QtGui import QIcon, QDesktopServices
+from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import QThread, pyqtSignal
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database.db_manager import DBManager
 from core.security import SecurityManager
+from core.uiutils import open_external
 from core.updater import SecureGitHubUpdater
 from core.reports import WeeklyReportGenerator
 from core.approvals import ApprovalManager
@@ -50,7 +52,8 @@ class ParentAdminDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("⚙️ لوحة تحكم ولي الأمر | Parent Control Console")
-        self.resize(900, 650)
+        self.setMinimumSize(840, 560)
+        self.resize(900, 680)
         self.setStyleSheet(STYLE_ADMIN)
         self.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -78,6 +81,20 @@ class ParentAdminDialog(QDialog):
         self.setup_updates_tab()
 
     # --- 1. Schedule Tab ---
+
+    def _add_tab(self, widget, title):
+        """Every tab scrolls: the buttons at the bottom are never cut off.
+
+        Without this the parent had to maximise the window to reach the lower
+        buttons, and on a small laptop the dialog closed its own content.
+        """
+        area = QScrollArea()
+        area.setWidgetResizable(True)
+        area.setFrameShape(QFrame.Shape.NoFrame)
+        area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        area.setWidget(widget)
+        self.tabs.addTab(area, title)
+
     def setup_schedule_tab(self):
         tab = QWidget()
         v = QVBoxLayout(tab)
@@ -153,7 +170,7 @@ class ParentAdminDialog(QDialog):
         v.addLayout(h_btns)
 
         v.addStretch()
-        self.tabs.addTab(tab, "⏱️ جدول الأوقات")
+        self._add_tab(tab, "⏱️ جدول الأوقات")
 
     def save_schedule(self):
         b_start = self.time_bed_start.time().toString("HH:mm")
@@ -245,7 +262,7 @@ class ParentAdminDialog(QDialog):
         h_ctrl.addWidget(btn_del)
         v.addLayout(h_ctrl)
 
-        self.tabs.addTab(tab, "🛡️ القوائم والقواعد")
+        self._add_tab(tab, "🛡️ القوائم والقواعد")
         self.load_domains_table()
 
     def load_domains_table(self):
@@ -331,19 +348,19 @@ class ParentAdminDialog(QDialog):
         h_links = QHBoxLayout()
         btn_gemini_link = QPushButton("🔗 مفتاح Gemini مجاني")
         btn_gemini_link.setStyleSheet("font-size: 11px; padding: 4px 8px; background: #7C5CFF;")
-        btn_gemini_link.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://aistudio.google.com/app/apikey")))
+        btn_gemini_link.clicked.connect(lambda: open_external("https://aistudio.google.com/app/apikey"))
 
         btn_groq_link = QPushButton("🔗 مفتاح Groq مجاني")
         btn_groq_link.setStyleSheet("font-size: 11px; padding: 4px 8px; background: #059669;")
-        btn_groq_link.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://console.groq.com/keys")))
+        btn_groq_link.clicked.connect(lambda: open_external("https://console.groq.com/keys"))
 
         btn_or_link = QPushButton("🔗 مفتاح OpenRouter مجاني")
         btn_or_link.setStyleSheet("font-size: 11px; padding: 4px 8px; background: #7c3aed;")
-        btn_or_link.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://openrouter.ai/keys")))
+        btn_or_link.clicked.connect(lambda: open_external("https://openrouter.ai/keys"))
 
         btn_ds_link = QPushButton("🔗 مفتاح DeepSeek")
         btn_ds_link.setStyleSheet("font-size: 11px; padding: 4px 8px; background: #E6E0FF;")
-        btn_ds_link.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://platform.deepseek.com/api_keys")))
+        btn_ds_link.clicked.connect(lambda: open_external("https://platform.deepseek.com/api_keys"))
 
         h_links.addWidget(btn_gemini_link)
         h_links.addWidget(btn_groq_link)
@@ -390,7 +407,7 @@ class ParentAdminDialog(QDialog):
 
         btn_app_pwd_link = QPushButton("🔗 استخراج كلمة مرور التطبيق من Google مباشرة (Google App Passwords)")
         btn_app_pwd_link.setStyleSheet("background-color: #7C5CFF; color: white; padding: 6px 12px; font-weight: bold;")
-        btn_app_pwd_link.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://myaccount.google.com/apppasswords")))
+        btn_app_pwd_link.clicked.connect(lambda: open_external("https://myaccount.google.com/apppasswords"))
         f_mail.addRow("خطوة سريعة:", btn_app_pwd_link)
 
         lbl_hint_pwd = QLabel("ملاحظة: اختر اسم 'Haseen Kids' وأنشئ كلمة مرور التطبيق وانسخ الـ 16 حرفاً هنا.")
@@ -425,7 +442,7 @@ class ParentAdminDialog(QDialog):
         v.addWidget(btn_save_all)
 
         v.addStretch()
-        self.tabs.addTab(tab, "⚙️ الحماية والـ AI")
+        self._add_tab(tab, "⚙️ الحماية والـ AI")
 
     def apply_policies(self):
         ok, msg = self.security.apply_browser_registry_policies()
@@ -625,7 +642,7 @@ class ParentAdminDialog(QDialog):
         v.addWidget(grp_pwd)
 
         v.addStretch()
-        self.tabs.addTab(tab, "🔄 التحديثات والصيانة")
+        self._add_tab(tab, "🔄 التحديثات والصيانة")
 
         self.create_requests_tab()
 
@@ -680,7 +697,7 @@ class ParentAdminDialog(QDialog):
         row.addWidget(btn_ref)
         v.addLayout(row)
 
-        self.tabs.addTab(tab, "📨 طلبات الطفل")
+        self._add_tab(tab, "📨 طلبات الطفل")
         self.load_requests()
 
     def load_requests(self):
