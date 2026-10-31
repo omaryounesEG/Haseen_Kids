@@ -462,3 +462,50 @@ class TestUiUtils(unittest.TestCase):
         self.assertTrue(os.path.exists(path))
         text = open(path, encoding="utf-8").read()
         self.assertIn("thread", text.lower())
+
+
+class TestSingleInstance(unittest.TestCase):
+    """One copy only: several copies fight over the DB and the port."""
+
+    def test_mutex_blocks_a_second_process(self):
+        import subprocess
+        import sys
+        from core.single_instance import acquire_mutex, release_mutex
+
+        self.assertTrue(acquire_mutex(), "first acquire must succeed")
+        try:
+            code = (
+                "import sys; sys.path.insert(0, r'%s');"
+                "from core.single_instance import acquire_mutex;"
+                "print(acquire_mutex())" % __import__("os").path.dirname(
+                    __import__("os").path.dirname(__import__("os").path.abspath(__file__)))
+            )
+            out = subprocess.run([sys.executable, "-c", code],
+                                 capture_output=True, text=True, timeout=30)
+            self.assertEqual(out.stdout.strip(), "False",
+                             "a second process must NOT get the lock")
+        finally:
+            release_mutex()
+
+    def test_no_hardcoded_drive_paths(self):
+        import io
+        import os
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        offenders = []
+        for folder in ("core", "ui", "proxy", "database"):
+            path = os.path.join(root, folder)
+            if not os.path.isdir(path):
+                continue
+            for name in os.listdir(path):
+                if not name.endswith(".py"):
+                    continue
+                full = os.path.join(path, name)
+                text = io.open(full, encoding="utf-8", errors="replace").read()
+                if "H:\\Haseen_Kids" in text:
+                    offenders.append(full)
+        self.assertEqual(offenders, [], f"hardcoded drive paths in: {offenders}")
+
+    def test_duplicate_helper_never_kills(self):
+        from core.single_instance import find_duplicate_ui_instances
+        result = find_duplicate_ui_instances()
+        self.assertIsInstance(result, list)

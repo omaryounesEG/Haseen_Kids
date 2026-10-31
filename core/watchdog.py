@@ -4,10 +4,11 @@ import sys
 import subprocess
 import psutil
 
-HEARTBEAT_FILE = "H:\\Haseen_Kids\\core\\daemon.heartbeat"
-SERVICE_PID_FILE = "H:\\Haseen_Kids\\core\\service.pid"
-WATCHDOG_PID_FILE = "H:\\Haseen_Kids\\core\\watchdog.pid"
-SERVICE_SCRIPT = "H:\\Haseen_Kids\\core\\service.py"
+CORE_DIR = os.path.dirname(os.path.abspath(__file__))
+HEARTBEAT_FILE = os.path.join(CORE_DIR, "daemon.heartbeat")
+SERVICE_PID_FILE = os.path.join(CORE_DIR, "service.pid")
+WATCHDOG_PID_FILE = os.path.join(CORE_DIR, "watchdog.pid")
+SERVICE_SCRIPT = os.path.join(CORE_DIR, "service.py")
 
 def check_single_instance():
     if os.path.exists(WATCHDOG_PID_FILE):

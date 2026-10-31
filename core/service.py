@@ -12,8 +12,9 @@ from proxy.local_proxy import LocalProxyServer
 from core.tracker import ActiveWindowTracker
 from core.security import SecurityManager
 
-HEARTBEAT_FILE = "H:\\Haseen_Kids\\core\\daemon.heartbeat"
-PID_FILE = "H:\\Haseen_Kids\\core\\service.pid"
+CORE_DIR = os.path.dirname(os.path.abspath(__file__))
+HEARTBEAT_FILE = os.path.join(CORE_DIR, "daemon.heartbeat")
+PID_FILE = os.path.join(CORE_DIR, "service.pid")
 
 def check_single_instance():
     if os.path.exists(PID_FILE):

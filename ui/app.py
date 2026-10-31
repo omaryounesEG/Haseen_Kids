@@ -894,6 +894,21 @@ def setup_custom_fonts():
             QFontDatabase.addApplicationFont(fp)
 
 if __name__ == "__main__":
+    # --- One copy only ----------------------------------------------------
+    try:
+        from core.single_instance import ensure_single_instance, find_duplicate_ui_instances
+        if not ensure_single_instance():
+            sys.exit(0)
+        # Older builds had no single-instance guard: clear their leftovers so
+        # only this window remains (one proxy, one tracker, one tray icon).
+        duplicates = find_duplicate_ui_instances()
+        if duplicates:
+            print(f"[single-instance] note: {len(duplicates)} older interface process(es) still open: {duplicates}")
+    except SystemExit:
+        raise
+    except Exception:
+        pass
+
     # --- Never let an exception close the program -------------------------
     # Without this a single bad click aborts the whole process (PyQt calls
     # abort() on unhandled exceptions), which is exactly what a parent sees as

@@ -112,6 +112,20 @@ def main():
     print(f"Base Directory: {BASE_DIR}")
     print(f"Python Runtime: {PY_EXE}\n")
 
+    # One copy only: a second copy starts a second proxy + tracker, fights over
+    # the same database and shows several tray icons -- which is what made the
+    # program look frozen.  If another copy owns the app we just raise its window.
+    try:
+        from core.single_instance import check_only, focus_existing_window, already_running_notice
+        if not check_only():
+            # The interface process owns the lock; raise it and stop here.
+            focus_existing_window()
+            already_running_notice()
+            print("[i] Another Haseen Kids copy is already running - window raised.")
+            return 0
+    except Exception as exc:
+        print(f"[i] Single-instance guard unavailable: {exc}")
+
     problems = check_install()
     for p in problems:
         print("[!] " + p.replace("\n", "\n    "))

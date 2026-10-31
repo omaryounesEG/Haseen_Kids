@@ -3,7 +3,7 @@
 > **نظام الحماية والرقابة الأسرية الذكي + مشغل يوتيوب معزول بدون إعلانات**
 > *متوافق مع Windows 7 SP1 و 8 و 10 و 11*
 
-**الإصدار الحالي: `1.3.3`** — [آخر إصدار | Latest release](https://github.com/omaryounesEG/Haseen_Kids/releases/latest)
+**الإصدار الحالي: `1.3.4`** — [آخر إصدار | Latest release](https://github.com/omaryounesEG/Haseen_Kids/releases/latest)
 
 ---
 

@@ -135,7 +135,10 @@ netsh advfirewall firewall add rule name="Haseen_Allow_Proxy_In" dir=in action=a
 netsh advfirewall firewall add rule name="Haseen_Allow_Local" dir=out action=allow remoteip=127.0.0.1
 echo تم إعداد جدار الحماية بنجاح.
 """
-        script_path = "H:\\Haseen_Kids\\scripts\\setup_firewall.bat"
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        scripts_dir = os.path.join(base_dir, "scripts")
+        os.makedirs(scripts_dir, exist_ok=True)
+        script_path = os.path.join(scripts_dir, "setup_firewall.bat")
         with open(script_path, "w", encoding="utf-8") as f:
             f.write(cmd)
         return script_path
@@ -159,10 +162,12 @@ echo تم إعداد جدار الحماية بنجاح.
                 pass
         return killed
 
-    def lock_files_acl(self, folder_path="H:\\Haseen_Kids"):
+    def lock_files_acl(self, folder_path=None):
         """
         Restricts standard user write/delete permissions on the program folder using icacls
         """
+        if folder_path is None:
+            folder_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         try:
             # Grant Administrators and SYSTEM full control, remove Users write
             cmd = f'icacls "{folder_path}" /grant:r "SYSTEM":(OI)(CI)F /grant:r "Administrators":(OI)(CI)F'
