@@ -15,6 +15,8 @@ if os.path.exists(_TEST_DB):
     except Exception:
         pass
 os.environ["HASEEN_DB"] = _TEST_DB
+# error dialogs must never block an automated run
+os.environ["HASEEN_NO_DIALOGS"] = "1"
 
 def _seed_test_db():
     """The suite relies on the built-in whitelist/blacklist being present."""

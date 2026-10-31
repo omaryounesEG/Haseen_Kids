@@ -3,6 +3,18 @@ setlocal enabledelayedexpansion
 title Haseen Kids - Setup (1-Click)
 cd /d "%~dp0"
 
+:: ---------------------------------------------------------------
+:: Refuse to install inside a protected Windows folder. Installing in
+:: C:\Windows\System32 makes the database read-only and the app dies.
+:: ---------------------------------------------------------------
+echo %CD% | findstr /I /C:"\Windows" /C:"Program Files" >nul
+if not errorlevel 1 (
+    echo [ERROR] This folder is protected by Windows: %CD%
+    echo         Move the Haseen_Kids folder to C:\Haseen_Kids and run Setup.bat there.
+    pause
+    exit /b 1
+)
+
 echo ========================================================
 echo    HASEEN KIDS  -  One-Click Setup
 echo ========================================================

@@ -369,3 +369,64 @@ class TestTemporaryPause(unittest.TestCase):
             self.db.set_pause(minutes)
             left = self.db.get_pause_remaining()
             self.assertAlmostEqual(left, minutes * 60, delta=5)
+
+
+class TestCrashGuard(unittest.TestCase):
+    """A single error must never close the program (PyQt aborts otherwise)."""
+
+    def setUp(self):
+        import core.crashguard as cg
+        self.cg = cg
+        self.original_log = cg.LOG_FILE
+        cg.LOG_FILE = os.path.join(os.environ.get("TEMP", "/tmp"), "haseen_test_error.log")
+        cg.clear_error_log()
+
+    def tearDown(self):
+        self.cg.LOG_FILE = self.original_log
+
+    def test_exception_is_logged_not_swallowed_silently(self):
+        try:
+            raise ValueError("boom-test")
+        except ValueError:
+            tb = self.cg.log_exception(context="unit-test")
+        self.assertIn("boom-test", tb)
+        with open(self.cg.LOG_FILE, encoding="utf-8") as fh:
+            saved = fh.read()
+        self.assertIn("boom-test", saved)
+        self.assertIn("unit-test", saved)
+
+    def test_readonly_database_gets_an_actionable_message(self):
+        msg = self.cg.friendly_message("sqlite3.OperationalError: attempt to write a readonly database")
+        self.assertIn("مسؤول", msg)
+        self.assertIn("C:\\", msg)
+
+    def test_missing_module_gets_a_repair_hint(self):
+        msg = self.cg.friendly_message("ModuleNotFoundError: No module named 'PyQt6'")
+        self.assertIn("Repair.bat", msg)
+
+    def test_safe_decorator_keeps_the_program_alive(self):
+        @self.cg.safe
+        def failing_slot():
+            raise RuntimeError("slot-exploded")
+        self.assertIsNone(failing_slot())          # returns instead of raising
+        with open(self.cg.LOG_FILE, encoding="utf-8") as fh:
+            self.assertIn("slot-exploded", fh.read())
+
+
+class TestInstallGuards(unittest.TestCase):
+    """Running the program from C:\Windows breaks the database - refuse early."""
+
+    def test_protected_folders_are_detected(self):
+        import run as run_module
+        import os as _os
+        system_root = _os.environ.get("SystemRoot", r"C:\Windows")
+        self.assertTrue(run_module.is_bad_location(_os.path.join(system_root, "System32")))
+        self.assertFalse(run_module.is_bad_location(r"C:\Haseen_Kids"))
+
+    def test_repair_script_is_shipped(self):
+        path = os.path.join(BASE, "Repair.bat")
+        self.assertTrue(os.path.exists(path))
+        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+            text = fh.read()
+        self.assertIn("REPAIR", text.upper())
+        self.assertIn("haseen_before_repair.db", text)

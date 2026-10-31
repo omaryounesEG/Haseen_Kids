@@ -183,7 +183,7 @@ class PasswordDialog(QDialog):
         layout.addWidget(self.chk_show)
 
         self.btn_forgot = QPushButton("🔗 نسيت كلمة المرور؟ (استرجاع عبر البريد)")
-        self.btn_forgot.setStyleSheet("color: #7C5CFF; background: none; border: none; text-align: right; text-decoration: underline; font-size: 12px; cursor: pointer;")
+        self.btn_forgot.setStyleSheet("color: #7C5CFF; background: none; border: none; text-align: right; text-decoration: underline; font-size: 12px;")
         self.btn_forgot.clicked.connect(self.open_password_reset)
         layout.addWidget(self.btn_forgot)
 
@@ -313,6 +313,15 @@ class HaseenMainWindow(QMainWindow):
         self.lang_btn = QPushButton("🌐 English / عربي")
         self.lang_btn.clicked.connect(self.toggle_language)
         add_tip(self.lang_btn, "تغيير لغة واجهة البرنامج بين العربية والإنجليزية.")
+        # Pause control next to the language switch: the same action as the
+        # tray icon, so a parent finds it without knowing about right-click.
+        self.btn_pause = QPushButton("⏸️ إيقاف مؤقت")
+        self.btn_pause.clicked.connect(self.open_pause_chooser)
+        add_tip(self.btn_pause,
+                "يوقف الحجب والجدول مؤقتاً لمدة تختارها بكلمة مرور ولي الأمر، "
+                "ثم يعود كل شيء تلقائياً.")
+        top_bar.addWidget(self.btn_pause)
+
         top_bar.addWidget(self.lang_btn)
 
         self.admin_btn = QPushButton("⚙️ لوحة ولي الأمر")
@@ -656,6 +665,18 @@ class HaseenMainWindow(QMainWindow):
         self._tray_timer.start(30000)
         self.refresh_pause_state()
 
+        # Tell the parent once that the tray icon is where the controls live.
+        try:
+            if self.db.get_setting("tray_hint_shown") != "1":
+                self.tray_icon.showMessage(
+                    "حَصِين للأطفال 🛡️",
+                    "الأيقونة بجوار الساعة: بالزر الأيمن يمكنك إيقاف الحماية مؤقتاً "
+                    "(15/30 دقيقة، ساعة، 4 ساعات) أو إغلاق البرنامج بكلمة المرور.",
+                    QSystemTrayIcon.MessageIcon.Information, 9000)
+                self.db.set_setting("tray_hint_shown", "1")
+        except Exception:
+            pass
+
     # --- pause / resume ---------------------------------------------------
     @staticmethod
     def _fmt_minutes(seconds):
@@ -716,6 +737,23 @@ class HaseenMainWindow(QMainWindow):
             return "title" in params
         except Exception:
             return False
+
+    def open_pause_chooser(self):
+        """Small duration picker, then the parent password."""
+        from PyQt6.QtWidgets import QInputDialog
+        options = ["15 دقيقة", "30 دقيقة", "ساعة واحدة", "4 ساعات", "استئناف الحماية الآن"]
+        current = 0 if not self.db.is_paused() else 4
+        choice, ok = QInputDialog.getItem(
+            self, "إيقاف الحماية مؤقتاً",
+            "اختر المدة التي تريد فيها إيقاف الحماية (ستعود تلقائياً):",
+            options, current, False)
+        if not ok:
+            return
+        if choice == options[4]:
+            self.resume_protection()
+            return
+        minutes = {0: 15, 1: 30, 2: 60, 3: 240}[options.index(choice)]
+        self.pause_protection(minutes)
 
     def pause_protection(self, minutes):
         if not self._ask_parent_password("تأكيد إيقاف الحماية", f"أدخل كلمة مرور ولي الأمر لإيقاف الحماية مؤقتاً لمدة {minutes} دقيقة."):
@@ -792,7 +830,18 @@ def setup_custom_fonts():
             QFontDatabase.addApplicationFont(fp)
 
 if __name__ == "__main__":
-    app = QApplication(sys.argv)
+    # --- Never let an exception close the program -------------------------
+    # Without this a single bad click aborts the whole process (PyQt calls
+    # abort() on unhandled exceptions), which is exactly what a parent sees as
+    # "it crashed and will not open again".
+    try:
+        from core.crashguard import install_exception_hooks, make_safe_application, read_last_error
+        install_exception_hooks()
+        AppClass = make_safe_application()
+    except Exception:
+        AppClass = QApplication
+
+    app = AppClass(sys.argv)
     setup_custom_fonts()
     app.setFont(QFont("IBM Plex Sans Arabic", 11))
     app.setStyleSheet(STYLE_SHEET_DARK)   # one kid-friendly palette everywhere

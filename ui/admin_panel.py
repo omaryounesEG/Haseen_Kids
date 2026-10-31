@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QTime, QUrl
 from PyQt6.QtGui import QIcon, QDesktopServices
+from PyQt6.QtCore import QThread, pyqtSignal
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database.db_manager import DBManager
@@ -22,6 +23,27 @@ try:
     from ui.theme import STYLESHEET as STYLE_ADMIN, tip as add_tip
 except Exception:
     from theme import STYLESHEET as STYLE_ADMIN, tip as add_tip
+
+
+class _NetWorker(QThread):
+    """Runs a blocking network check off the UI thread.
+
+    Any SMTP/API test can take several seconds (or hang on a bad network). Doing
+    that on the UI thread freezes the window and makes the parent think the
+    program died — so every check runs here instead.
+    """
+    done = pyqtSignal(bool, str)
+
+    def __init__(self, fn, parent=None):
+        super().__init__(parent)
+        self._fn = fn
+
+    def run(self):
+        try:
+            ok, msg = self._fn()
+        except Exception as exc:  # never let a worker kill the app
+            ok, msg = False, f"خطأ غير متوقع أثناء الفحص: {exc}"
+        self.done.emit(bool(ok), str(msg))
 
 
 class ParentAdminDialog(QDialog):
@@ -426,20 +448,22 @@ class ParentAdminDialog(QDialog):
             self.lbl_ai_led.setStyleSheet("color: #FF5C7A; font-size: 12px; font-weight: bold;")
             return
 
-        self.lbl_ai_led.setText("⏳ جاري اختبار الاتصال...")
+        self.lbl_ai_led.setText("⏳ جاري اختبار الاتصال... (يمكنك متابعة العمل)")
         self.lbl_ai_led.setStyleSheet("color: #7C5CFF; font-size: 12px; font-weight: bold;")
-        from PyQt6.QtWidgets import QApplication
-        QApplication.processEvents()
 
-        ok, msg = SmartFilterEngine.test_ai_provider(prov, api_key)
+        self._ai_worker = _NetWorker(lambda: SmartFilterEngine.test_ai_provider(prov, api_key), self)
+        self._ai_worker.done.connect(self._on_ai_result)
+        self._ai_worker.start()
+
+    def _on_ai_result(self, ok, msg):
         if ok:
             self.lbl_ai_led.setText(f"🟢 {msg}")
-            self.lbl_ai_led.setStyleSheet("color: #34d399; font-size: 12px; font-weight: bold; background: rgba(16, 185, 129, 0.15); padding: 4px 8px; border-radius: 4px;")
+            self.lbl_ai_led.setStyleSheet("color: #22C1A8; font-size: 12px; font-weight: bold; background: rgba(34, 193, 168, 0.15); padding: 4px 8px; border-radius: 6px;")
             QMessageBox.information(self, "نجاح فحص الـ API", msg)
         else:
             self.lbl_ai_led.setText(f"🔴 {msg[:60]}")
             self.lbl_ai_led.setStyleSheet("color: #FF5C7A; font-size: 12px; font-weight: bold;")
-            QMessageBox.critical(self, "فشل فحص الـ API", msg)
+            QMessageBox.warning(self, "فشل فحص الـ API", msg)
 
     def test_smtp_mail(self):
         user = self.in_smtp_user.text().strip()
@@ -451,22 +475,35 @@ class ParentAdminDialog(QDialog):
             self.lbl_mail_led.setStyleSheet("color: #FF5C7A; font-size: 12px; font-weight: bold;")
             return
 
-        self.lbl_mail_led.setText("⏳ جاري فحص الاتصال بسيرفر Google...")
+        self.lbl_mail_led.setText("⏳ جاري فحص الاتصال بسيرفر Google... (يمكنك متابعة العمل)")
         self.lbl_mail_led.setStyleSheet("color: #7C5CFF; font-size: 12px; font-weight: bold;")
-        from PyQt6.QtWidgets import QApplication
-        QApplication.processEvents()
 
-        ok, msg = ApprovalManager.test_smtp_connection(user, pwd, srv)
+        self._smtp_worker = _NetWorker(
+            lambda: ApprovalManager.test_smtp_connection(user, pwd, srv), self)
+        self._smtp_worker.done.connect(self._on_smtp_result)
+        self._smtp_worker.start()
+
+    def _on_smtp_result(self, ok, msg):
         if ok:
             self.lbl_mail_led.setText("🟢 متصل بنجاح وجاهز للإرسال والاستقبال ✅")
-            self.lbl_mail_led.setStyleSheet("color: #34d399; font-size: 12px; font-weight: bold; background: rgba(16, 185, 129, 0.15); padding: 4px 8px; border-radius: 4px;")
+            self.lbl_mail_led.setStyleSheet("color: #22C1A8; font-size: 12px; font-weight: bold; background: rgba(34, 193, 168, 0.15); padding: 4px 8px; border-radius: 6px;")
             QMessageBox.information(self, "نجاح الاتصال بالبريد", msg)
         else:
             self.lbl_mail_led.setText("🔴 فشل الاتصال - راجع كلمة المرور")
             self.lbl_mail_led.setStyleSheet("color: #FF5C7A; font-size: 12px; font-weight: bold;")
-            QMessageBox.critical(self, "فشل الاتصال بالبريد", msg)
+            QMessageBox.warning(self, "فشل الاتصال بالبريد", msg)
 
     def save_security_settings(self):
+        # A write to a read-only/locked database must never close the program:
+        # it happens when the folder sits under C:\Windows or Program Files.
+        try:
+            self._save_security_settings()
+        except Exception as exc:
+            from core.crashguard import log_exception, friendly_message
+            tb = log_exception(context="save_security_settings")
+            QMessageBox.critical(self, "تعذّر الحفظ", friendly_message(tb) + f"{chr(10)}{chr(10)}التفاصيل: {exc}")
+
+    def _save_security_settings(self):
         self.db.set_setting("process_lockdown", "1" if self.chk_lockdown.isChecked() else "0")
         self.db.set_setting("youtube_clean_mode", "1" if self.chk_yt_clean.isChecked() else "0")
         self.db.set_setting("ai_provider", self.cmb_ai.currentData() or "gemini")

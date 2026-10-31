@@ -23,7 +23,7 @@ from database.db_manager import DBManager
 EMBEDDED_PUBLIC_KEY_HEX = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
 
 class SecureGitHubUpdater:
-    def __init__(self, repo="omaryounesEG/Haseen_Kids", current_version="1.3.0", install_dir=None):
+    def __init__(self, repo="omaryounesEG/Haseen_Kids", current_version="1.3.1", install_dir=None):
         self.repo = repo
         self.current_version = current_version
         self.install_dir = install_dir or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

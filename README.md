@@ -3,7 +3,7 @@
 > **نظام الحماية والرقابة الأسرية الذكي + مشغل يوتيوب معزول بدون إعلانات**
 > *متوافق مع Windows 7 SP1 و 8 و 10 و 11*
 
-**الإصدار الحالي: `1.3.0`** — [آخر إصدار | Latest release](https://github.com/omaryounesEG/Haseen_Kids/releases/latest)
+**الإصدار الحالي: `1.3.1`** — [آخر إصدار | Latest release](https://github.com/omaryounesEG/Haseen_Kids/releases/latest)
 
 ---
 
@@ -26,7 +26,7 @@ recovery/removal** even if the parent password is forgotten.
   from Git and from every update copy.
 - **Forgotten password / removal (offline):** `Haseen_Remove.bat` → recovery key, or the
   Windows Administrator account, or the password.
-- **Quality:** 52/52 automated tests passing; see `tests/BUG_REPORT.md` and `tests/UX_UI_REPORT.md`.
+- **Quality:** 58/58 automated tests passing; see `tests/BUG_REPORT.md` and `tests/UX_UI_REPORT.md`.
 - **License:** MIT — **Built by:** SAIP Consulting.
 
 اقرأ الشرح الكامل بالعربية أسفل الصفحة 👇
@@ -99,6 +99,9 @@ python uninstall.py --delete-files --key ...       :: إزالة + حذف كل �
    بكلمة مرور ولي الأمر، ويعود الحجب تلقائياً عند انتهاء المدة (مع زر «استئناف الآن»).
 8. **مفتاح استرجاع ومفتاح إزالة نهائية يعملان بدون إنترنت** حتى لو نُسيت كلمة المرور.
 9. **واجهة أطفال**: ألوان مبهجة، خط IBM Plex Sans Arabic مكبّر، حواف دائرية، وشرح توضيحي (tooltip) لكل زر.
+10. **لا يُغلق عند أي خطأ**: أي استثناء يُسجَّل في `logs\haseen_error.log` مع رسالة عربية واضحة
+    والبرنامج يكمل عمله (كان أي خطأ ينهي البرنامج سابقاً)، وفحص البريد/API يعمل في الخلفية بلا تهنيج.
+11. **إيقاف مؤقت ظاهر**: زر «⏸️ إيقاف مؤقت» أعلى النافذة + زر يمين على أيقونة الترس (15/30/ساعة/4 ساعات).
 
 ---
 
@@ -108,6 +111,7 @@ python uninstall.py --delete-files --key ...       :: إزالة + حذف كل �
 | :--- | :--- |
 | `Setup.bat` | التثبيت الكامل بضغطة (بحث بايثون + مكتبات + معالج رسومي). |
 | `Haseen_Remove.bat` | الاسترجاع أو الحذف النهائي بدون إنترنت (3 طرق). |
+| `Repair.bat` | **إصلاح ذاتي**: يفحص/يعيد بناء البيئة ويعالج القاعدة مع نسخة احتياطية (لا يمسح كلمة المرور). |
 | `install_from_github.bat` | تثبيت/تحديث من GitHub مع الحفاظ على قاعدة البيانات. |
 | `scripts\run_all.bat` | تشغيل الخدمة + البروكسي + الحارس + الواجهة. |
 | `scripts\update.bat` | تحديث فوري لآخر إصدار. |
