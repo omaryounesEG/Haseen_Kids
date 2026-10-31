@@ -87,6 +87,15 @@ class SmartFilterEngine:
             domain = domain.split(':')[0]
         path = parsed.path or ""
 
+        # --- Parent paused the whole protection from the tray icon -----------
+        # Everything passes while the timer runs; it expires by itself, so a
+        # parent can never leave the child unprotected by accident.
+        try:
+            if self.db.get_pause_remaining() > 0:
+                return "ALLOW", "SAFE", "الحماية متوقفة مؤقتاً بقرار ولي الأمر", "PAUSED"
+        except Exception:
+            pass
+
         # --- Smart YouTube policy: never block, never wait for approval ------
         if self._matches(domain, YOUTUBE_HOSTS):
             is_embed = "/embed/" in path or domain.endswith("youtube-nocookie.com")

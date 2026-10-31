@@ -150,3 +150,68 @@ class TestUIUX(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestTrayPauseMenu(unittest.TestCase):
+    """Right-click on the tray icon must offer 15/30/60/240 minutes."""
+
+    @classmethod
+    def setUpClass(cls):
+        from PyQt6.QtWidgets import QApplication
+        import os
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        cls.app = QApplication.instance() or QApplication([])
+
+    def setUp(self):
+        from ui.app import HaseenMainWindow
+        self.win = HaseenMainWindow()
+
+    def tearDown(self):
+        try:
+            self.win.db.clear_pause()
+        except Exception:
+            pass
+        self.win.tray_icon.hide()
+        self.win.close()
+
+    def test_menu_has_the_four_durations_and_resume(self):
+        labels = [a.text() for a in self.win.menu_pause.actions()]
+        self.assertEqual(len(labels), 4, labels)
+        for word in ("15", "30", "ساعة", "4"):
+            self.assertTrue(any(word in l for l in labels), f"missing {word} in {labels}")
+        self.assertIn("استئناف", self.win.act_resume.text())
+        self.assertFalse(self.win.act_resume.isEnabled())
+
+    def test_tray_reflects_the_pause_state(self):
+        self.win.db.set_pause(30)
+        self.win.refresh_pause_state()
+        self.assertTrue(self.win.act_resume.isEnabled())
+        self.assertIn("متوقفة", self.win.act_pause_status.text())
+        self.assertIn("متوقفة", self.win.tray_icon.toolTip())
+        self.assertFalse(self.win.menu_pause.isEnabled())
+
+        self.win.db.clear_pause()
+        self.win.refresh_pause_state()
+        self.assertFalse(self.win.act_resume.isEnabled())
+        self.assertIn("نشطة", self.win.act_pause_status.text())
+
+    def test_pause_requires_the_parent_password(self):
+        import ui.app as app_module
+        calls = {}
+
+        class FakeDlg:
+            def __init__(self, db=None, parent=None, title=None, prompt=None):
+                calls["asked"] = True
+
+            def exec(self):
+                from PyQt6.QtWidgets import QDialog
+                return QDialog.DialogCode.Rejected
+
+        original = app_module.PasswordDialog
+        app_module.PasswordDialog = FakeDlg
+        try:
+            self.win.pause_protection(15)      # parent cancels the prompt
+        finally:
+            app_module.PasswordDialog = original
+        self.assertTrue(calls.get("asked"), "the parent must be asked for the password")
+        self.assertFalse(self.win.db.is_paused(), "no pause without a correct password")

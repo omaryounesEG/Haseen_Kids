@@ -1,6 +1,7 @@
 import sqlite3
 import os
 import json
+import time
 from datetime import datetime, date
 
 # Portable path: the database always lives beside this package, whatever drive
@@ -189,6 +190,28 @@ class DBManager:
                     cursor.execute('SELECT action, category, source FROM domains WHERE domain = ?', (candidate,))
                     return cursor.fetchone()
         return None
+
+    # --- temporary pause of the whole protection --------------------------
+    # The parent can suspend filtering for a while (15/30/60/240 minutes) from the
+    # tray icon, with the parent password. Everything else keeps running.
+    def set_pause(self, minutes):
+        until = int(time.time()) + int(minutes) * 60
+        self.set_setting("paused_until", str(until))
+        return until
+
+    def get_pause_remaining(self):
+        """Seconds left on the pause, 0 when protection is active."""
+        try:
+            until = int(float(self.get_setting("paused_until") or 0))
+        except Exception:
+            until = 0
+        return max(0, until - int(time.time()))
+
+    def is_paused(self):
+        return self.get_pause_remaining() > 0
+
+    def clear_pause(self):
+        self.set_setting("paused_until", "0")
 
     def has_active_exception(self, domain):
         """True when the parent approved this site (permanent, or a still-valid

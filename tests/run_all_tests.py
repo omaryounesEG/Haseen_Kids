@@ -60,7 +60,7 @@ def run_suite():
 
     # 5. v1.2.0 feature tests: whitelist everywhere, YouTube embeds,
     #    offline recovery/removal, kid theme
-    print("\n[5/5] Running v1.2.0 Feature Tests...")
+    print("\n[5/5] Running Feature Tests (v1.2.0 + v1.3.0)...")
     import tests.test_v120_features as t_new
     suite_new = loader.loadTestsFromModule(t_new)
     res_new = runner.run(suite_new)
@@ -81,7 +81,7 @@ def run_suite():
     print(f"• Functional Tests: {res_func.testsRun} (Failures: {len(res_func.failures)}, Errors: {len(res_func.errors)})")
     print(f"• Bug & Edge Case Tests: {res_bugs.testsRun} (Failures: {len(res_bugs.failures)}, Errors: {len(res_bugs.errors)})")
     print(f"• UI & UX Tests: {res_ui.testsRun} (Failures: {len(res_ui.failures)}, Errors: {len(res_ui.errors)})")
-    print(f"• v1.2.0 Feature Tests: {res_new.testsRun} (Failures: {len(res_new.failures)}, Errors: {len(res_new.errors)})")
+    print(f"• Feature Tests (1.2/1.3): {res_new.testsRun} (Failures: {len(res_new.failures)}, Errors: {len(res_new.errors)})")
     print(f"• Total Duration: {duration:.2f} seconds")
 
     if total_failures == 0 and total_errors == 0:

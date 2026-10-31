@@ -3,7 +3,7 @@
 > **نظام الحماية والرقابة الأسرية الذكي + مشغل يوتيوب معزول بدون إعلانات**
 > *متوافق مع Windows 7 SP1 و 8 و 10 و 11*
 
-**الإصدار الحالي: `1.2.0`** — [آخر إصدار | Latest release](https://github.com/omaryounesEG/Haseen_Kids/releases/latest)
+**الإصدار الحالي: `1.3.0`** — [آخر إصدار | Latest release](https://github.com/omaryounesEG/Haseen_Kids/releases/latest)
 
 ---
 
@@ -26,7 +26,7 @@ recovery/removal** even if the parent password is forgotten.
   from Git and from every update copy.
 - **Forgotten password / removal (offline):** `Haseen_Remove.bat` → recovery key, or the
   Windows Administrator account, or the password.
-- **Quality:** 41/41 automated tests passing; see `tests/BUG_REPORT.md` and `tests/UX_UI_REPORT.md`.
+- **Quality:** 52/52 automated tests passing; see `tests/BUG_REPORT.md` and `tests/UX_UI_REPORT.md`.
 - **License:** MIT — **Built by:** SAIP Consulting.
 
 اقرأ الشرح الكامل بالعربية أسفل الصفحة 👇
@@ -95,6 +95,8 @@ python uninstall.py --delete-files --key ...       :: إزالة + حذف كل �
 5. **صفحة حجب عربية تفاعلية**: الطفل يطلب الإذن، ولي الأمر يوافق، والموقع يفتح تلقائياً بلا إعادة تحميل يدوية.
 6. **لوحة ولي أمر كاملة**: جداول أوقات، قوائم، استثناءات مؤقتة، تقارير، تحديث بضغطة، عرض الإصدار الحالي مقابل GitHub.
 7. **حارس مزدوج (Watchdog)** + أيقونة في صينية النظام؛ لا يمكن للطفل إغلاق البرنامج إلا بكلمة مرور.
+7أ. **إيقاف مؤقت للحماية من الأيقونة المصغّرة** (زر يمين): 15 دقيقة / 30 دقيقة / ساعة / 4 ساعات
+   بكلمة مرور ولي الأمر، ويعود الحجب تلقائياً عند انتهاء المدة (مع زر «استئناف الآن»).
 8. **مفتاح استرجاع ومفتاح إزالة نهائية يعملان بدون إنترنت** حتى لو نُسيت كلمة المرور.
 9. **واجهة أطفال**: ألوان مبهجة، خط IBM Plex Sans Arabic مكبّر، حواف دائرية، وشرح توضيحي (tooltip) لكل زر.
 

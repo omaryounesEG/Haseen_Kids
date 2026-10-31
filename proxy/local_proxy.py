@@ -478,9 +478,14 @@ class LocalProxyServer:
 
         # 7. Health probe (used by the app, setup wizard and tests)
         if parsed.path in ("/", "/status", "/health"):
+            try:
+                left = self.db.get_pause_remaining()
+            except Exception:
+                left = 0
             payload = json.dumps({
                 "status": "online", "service": "Haseen Local Proxy",
-                "port": self.port, "version": "1.2.0"
+                "port": self.port, "version": "1.3.0",
+                "paused": bool(left), "pause_seconds_left": left
             }, ensure_ascii=False).encode()
             await send(payload)
             writer.close()

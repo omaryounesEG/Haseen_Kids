@@ -260,3 +260,112 @@ class TestParentApprovalLoop(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class TestClasseraEverywhere(unittest.TestCase):
+    """One entry for classera.com must open every sub-domain and every inner page,
+    without the parent having to list them one by one."""
+
+    HOSTS = [
+        "classera.com",
+        "www.classera.com",
+        "app.classera.com",
+        "lms.classera.com",
+        "school-142.classera.com",
+        "cdn.static.classera.com",
+        "a.b.c.d.classera.com",
+        "classera.com:8443",
+    ]
+
+    PATHS = [
+        "/",
+        "/ar/login",
+        "/student/course/12345/lesson/987?token=abc#t=10",
+        "/api/v1/media/video.m3u8",
+        "/files/books/math-g5.pdf",
+    ]
+
+    def setUp(self):
+        self.db = fresh_db()
+        self.db.add_rule("classera.com", "ALLOW", "SCHOOL", "PARENT_RULE")
+        self.fe = SmartFilterEngine(self.db)
+
+    def tearDown(self):
+        with self.db.get_connection() as c:
+            c.cursor().execute("DELETE FROM domains WHERE domain = 'classera.com' AND source = 'PARENT_RULE'")
+            c.commit()
+
+    def test_every_subdomain_and_inner_page_is_allowed(self):
+        for host in self.HOSTS:
+            for path in self.PATHS:
+                action, cat, reason, src = self.fe.evaluate_url(f"https://{host}{path}")
+                self.assertEqual(action, "ALLOW", f"{host}{path} must be allowed (got {action})")
+
+    def test_lookalike_domain_is_not_covered(self):
+        for host in ["notclassera.com", "classera.com.evil.net", "classera.co"]:
+            action, cat, reason, src = self.fe.evaluate_url(f"https://{host}/")
+            self.assertNotEqual(src, "PARENT_RULE", f"{host} must not inherit the classera rule")
+
+    def test_removing_the_entry_closes_the_subdomains_too(self):
+        # remove every rule for the root (the seeded list one included)
+        with self.db.get_connection() as c:
+            c.cursor().execute("DELETE FROM domains WHERE domain = 'classera.com'")
+            c.cursor().execute("DELETE FROM domains WHERE domain LIKE '%classera%'")
+            c.commit()
+        action, cat, reason, src = self.fe.evaluate_url("https://app.classera.com/ar/login")
+        self.assertNotEqual(src, "PARENT_RULE", "the parent rule must be gone")
+        # re-seed so the shared test database stays consistent
+        self.db.save_domain_decision("classera.com", "ALLOW", "SCHOOL", "LIST_WHITELIST")
+
+
+class TestTemporaryPause(unittest.TestCase):
+    """The parent can suspend the whole protection for 15/30/60/240 minutes."""
+
+    def setUp(self):
+        self.db = fresh_db()
+        self.db.save_domain_decision("paused-block-test.com", "BLOCK", "ADULT", "LIST_BLACKLIST")
+        self.fe = SmartFilterEngine(self.db)
+
+    def tearDown(self):
+        self.db.clear_pause()
+        with self.db.get_connection() as c:
+            c.cursor().execute("DELETE FROM domains WHERE domain = 'paused-block-test.com'")
+            c.commit()
+
+    def test_protection_is_active_by_default(self):
+        self.assertFalse(self.db.is_paused())
+        self.assertEqual(self.db.get_pause_remaining(), 0)
+        action, *_ = self.fe.evaluate_url("https://paused-block-test.com/")
+        self.assertEqual(action, "BLOCK")
+
+    def test_pause_lets_everything_through(self):
+        self.db.set_pause(15)
+        self.assertTrue(self.db.is_paused())
+        self.assertGreater(self.db.get_pause_remaining(), 14 * 60)
+        for url in ("https://paused-block-test.com/",
+                    "https://pornhub.com/",
+                    "https://unknown-child-site.test/"):
+            action, cat, reason, src = self.fe.evaluate_url(url)
+            self.assertEqual(action, "ALLOW", f"{url} should pass while paused")
+            self.assertEqual(src, "PAUSED")
+
+    def test_pause_expires_by_itself(self):
+        self.db.set_pause(15)
+        # simulate the timer running out
+        self.db.set_setting("paused_until", str(__import__("time").time() - 1))
+        self.assertFalse(self.db.is_paused())
+        action, *_ = self.fe.evaluate_url("https://paused-block-test.com/")
+        self.assertEqual(action, "BLOCK")
+
+    def test_resume_restores_protection(self):
+        self.db.set_pause(60)
+        self.db.clear_pause()
+        self.assertFalse(self.db.is_paused())
+        action, *_ = self.fe.evaluate_url("https://paused-block-test.com/")
+        self.assertEqual(action, "BLOCK")
+
+    def test_all_four_durations_are_supported(self):
+        for minutes in (15, 30, 60, 240):
+            self.db.set_pause(minutes)
+            left = self.db.get_pause_remaining()
+            self.assertAlmostEqual(left, minutes * 60, delta=5)

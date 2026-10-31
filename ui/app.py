@@ -156,10 +156,10 @@ class ResetPasswordDialog(QDialog):
         self.accept()
 
 class PasswordDialog(QDialog):
-    def __init__(self, db=None, parent=None):
+    def __init__(self, db=None, parent=None, title=None, prompt=None):
         super().__init__(parent)
         self.db = db or DBManager()
-        self.setWindowTitle("دخول لوحة التحكم الأبوية | Parent Login")
+        self.setWindowTitle(title or "دخول لوحة التحكم الأبوية | Parent Login")
         self.setFixedSize(380, 240)
         self.setStyleSheet(STYLE_SHEET_DARK)
         self.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
@@ -168,7 +168,7 @@ class PasswordDialog(QDialog):
             self.setWindowIcon(QIcon(icon_path))
 
         layout = QVBoxLayout(self)
-        lbl = QLabel("أدخل كلمة مرور ولي الأمر للوصول للإعدادات:")
+        lbl = QLabel(prompt or "أدخل كلمة مرور ولي الأمر للوصول للإعدادات:")
         lbl.setStyleSheet("font-size: 15px; font-weight: bold; color: #7C5CFF;")
         layout.addWidget(lbl)
 
@@ -626,12 +626,113 @@ class HaseenMainWindow(QMainWindow):
 
         tray_menu.addSeparator()
 
+        # --- Pause / resume the whole protection (parent password) ----------
+        self.menu_pause = tray_menu.addMenu("⏸️ إيقاف الحماية مؤقتاً")
+        self.menu_pause.setToolTip("يتوقف الحجب والجدول مؤقتاً لمدة تختارها، مع رمز ولي الأمر، ثم يرجع تلقائياً.")
+        self.pause_actions = {}
+        for mins, label in ((15, "15 دقيقة"), (30, "30 دقيقة"), (60, "ساعة واحدة"), (240, "4 ساعات")):
+            act = self.menu_pause.addAction(f"⏸️ إيقاف لمدة {label}")
+            act.triggered.connect(lambda _checked=False, m=mins: self.pause_protection(m))
+            self.pause_actions[mins] = act
+
+        self.act_resume = tray_menu.addAction("▶️ استئناف الحماية الآن")
+        self.act_resume.triggered.connect(self.resume_protection)
+        self.act_pause_status = tray_menu.addAction("الحالة: الحماية نشطة ✅")
+        self.act_pause_status.setEnabled(False)
+
+        tray_menu.addSeparator()
+
         act_exit = tray_menu.addAction("إغلاق البرنامج وإنهاء الحماية ❌")
         act_exit.triggered.connect(self.exit_app_parent_authenticated)
 
+        self.tray_menu = tray_menu
         self.tray_icon.setContextMenu(tray_menu)
         self.tray_icon.activated.connect(self.on_tray_activated)
         self.tray_icon.show()
+
+        # Refresh the remaining time on the tray every 30 seconds
+        self._tray_timer = QTimer(self)
+        self._tray_timer.timeout.connect(self.refresh_pause_state)
+        self._tray_timer.start(30000)
+        self.refresh_pause_state()
+
+    # --- pause / resume ---------------------------------------------------
+    @staticmethod
+    def _fmt_minutes(seconds):
+        mins = int(round(seconds / 60.0))
+        if mins >= 60:
+            h, m = divmod(mins, 60)
+            return f"{h} ساعة" + (f" و{m} دقيقة" if m else "")
+        return f"{mins} دقيقة"
+
+    def refresh_pause_state(self):
+        """Keeps the tray tooltip, the status line and the resume item honest."""
+        try:
+            left = self.db.get_pause_remaining()
+        except Exception:
+            left = 0
+        paused = left > 0
+
+        self.act_resume.setEnabled(paused)
+        for mins, act in getattr(self, "pause_actions", {}).items():
+            act.setEnabled(not paused)
+        self.menu_pause.setEnabled(not paused)
+
+        if paused:
+            txt = f"⏸️ الحماية متوقفة مؤقتاً — باقٍ {self._fmt_minutes(left)}"
+            self.act_pause_status.setText(txt)
+            try:
+                self.tray_icon.setToolTip("حَصِين للأطفال | " + txt)
+            except Exception:
+                pass
+            if hasattr(self, "lbl_hero"):
+                self.lbl_hero.setText("الحماية متوقفة مؤقتاً ⏸️")
+                self.lbl_hero_sub.setText(f"ولي أمرك أوقف الحماية مؤقتاً — ستعود تلقائياً بعد {self._fmt_minutes(left)}.")
+        else:
+            self.act_pause_status.setText("الحالة: الحماية نشطة ✅")
+            try:
+                self.tray_icon.setToolTip("حَصِين للأطفال | نظام الحماية الأسرية نشط 🛡️")
+            except Exception:
+                pass
+            if hasattr(self, "lbl_hero"):
+                self.lbl_hero.setText("أهلاً يا بطل! 👋")
+                self.lbl_hero_sub.setText("حَصِين يحميك وأنت تتعلم وتلعب بأمان — اختر ما تريد فعله اليوم.")
+
+    def _ask_parent_password(self, title, prompt):
+        """Shows the parent password dialog; True only when the password is right."""
+        dlg = PasswordDialog(self.db, self, title=title, prompt=prompt)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return False
+        pwd = dlg.get_password()
+        if getattr(dlg, "reset_successful", False):
+            return True
+        return bool(self.security.verify_admin(pwd))
+
+    @staticmethod
+    def _pwd_dialog_accepts_titles():
+        try:
+            import inspect
+            params = inspect.signature(PasswordDialog.__init__).parameters
+            return "title" in params
+        except Exception:
+            return False
+
+    def pause_protection(self, minutes):
+        if not self._ask_parent_password("تأكيد إيقاف الحماية", f"أدخل كلمة مرور ولي الأمر لإيقاف الحماية مؤقتاً لمدة {minutes} دقيقة."):
+            return
+        self.db.set_pause(minutes)
+        self.refresh_pause_state()
+        self.tray_icon.showMessage(
+            "حَصِين للأطفال ⏸️",
+            f"تم إيقاف الحماية مؤقتاً لمدة {self._fmt_minutes(minutes * 60)}. ستعود تلقائياً."
+            + chr(10) + "يمكنك الاستئناف في أي وقت من نفس القائمة.",
+            QSystemTrayIcon.MessageIcon.Information, 5000)
+
+    def resume_protection(self):
+        self.db.clear_pause()
+        self.refresh_pause_state()
+        self.tray_icon.showMessage("حَصِين للأطفال ✅", "تم استئناف الحماية من جديد.",
+                                   QSystemTrayIcon.MessageIcon.Information, 3000)
 
     def show_main_window(self):
         self.showNormal()
